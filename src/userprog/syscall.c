@@ -18,7 +18,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
-  char *syscall_num = get_user(f->esp);
+  char *syscall_num = f->esp;
   printf("SYS_WRITE=%d\n",SYS_WRITE);
   printf ("system call!\n=%d\n",*syscall_num);
   char *name = f->esp + 4;
@@ -31,7 +31,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
 
     case SYS_CREATE:
-      f->eax = createFile(f->esp - 4);
+      f->eax = createFile(f->esp + 4);
       break;
 
     case SYS_WRITE:
