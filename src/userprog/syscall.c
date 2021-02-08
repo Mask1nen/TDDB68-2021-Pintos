@@ -36,6 +36,13 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_WRITE:
       printf("%s\n", "TELL ME WHY?!");
+      break;
+
+    case SYS_OPEN:
+      f->eax = openFile(f->esp+4);
+      break;
+
+
   }
   thread_exit ();
 }
@@ -43,16 +50,26 @@ syscall_handler (struct intr_frame *f UNUSED)
 bool
 createFile(void * esp){
   char *name = get_user(esp);
-  unsigned *size = (esp - 4);
+  unsigned *size = (esp + 4);
   printf("Hej!"\n);
   printf("name: %d\nsize: %i\n",*name, *size);
   return filesys_create(name, *size);
 }
 
-static char
-* get_user(const uint8_t *uaddr){
-  char *result;
-  asm ("mov1 $1f, %0; movzbl %1, %0; 1:"
-      : "=&a" (result) : "m" (*uaddr));
-  return result;
+int
+openFile(void * esp) {
+  struct thread *currentThread = thread_current();
+  size_t arraySize = sizeof(currentThread->fd) / 4;
+  if(arraySize < 130) {
+    struct file *file = filesys_open(esp);
+    if(file) {
+      for (size_t i = 2; i < 130; i++) {
+        if(!currentThread->fd[i]) {
+          currentThread->fd[i] = file;
+          return i;
+        }
+      }
+    }
+  }
+  return -1;
 }
