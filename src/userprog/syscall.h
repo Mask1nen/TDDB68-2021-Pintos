@@ -6,6 +6,7 @@
 
 void syscall_init (void);
 bool createFile(void * esp);
-static char * get_user(const uint8_t *uaddr);
+int openFile(void * esp);
+void closeFile(int fd);
 
 #endif /* userprog/syscall.h */

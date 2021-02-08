@@ -5,6 +5,7 @@
 #include "threads/thread.h"
 #include "threads/init.h"
 #include "filesys/filesys.h"
+#include "filesys/file.h"
 
 
 static void syscall_handler (struct intr_frame *);
@@ -34,14 +35,27 @@ syscall_handler (struct intr_frame *f UNUSED)
       f->eax = createFile(f->esp + 4);
       break;
 
-    case SYS_WRITE:
-      printf("%s\n", "TELL ME WHY?!");
-      break;
-
     case SYS_OPEN:
       f->eax = openFile(f->esp+4);
       break;
 
+    case SYS_CLOSE:
+      ; // empty statement in order to declare int
+      int *fd = f->esp+4;
+      closeFile(*fd);
+      break;
+
+    case SYS_READ:
+      //f->eax = readFile(f->esp+4);
+      break;
+
+    case SYS_WRITE:
+      //f->eax = writeFile(f->esp+4);
+      break;
+
+    case SYS_EXIT:
+      //exit();
+      break;
 
   }
   thread_exit ();
@@ -49,9 +63,9 @@ syscall_handler (struct intr_frame *f UNUSED)
 
 bool
 createFile(void * esp){
-  char *name = get_user(esp);
+  char *name = esp;
   unsigned *size = (esp + 4);
-  printf("Hej!"\n);
+  printf("Hej!\n");
   printf("name: %d\nsize: %i\n",*name, *size);
   return filesys_create(name, *size);
 }
@@ -72,4 +86,18 @@ openFile(void * esp) {
     }
   }
   return -1;
+}
+
+void
+closeFile(int fd){
+  if(fd < 130 && fd > 1){
+    struct thread *currentThread = thread_current();
+    size_t arraySize = sizeof(currentThread->fd) / 4;
+    if(arraySize > 2) {
+      if(currentThread->fd[fd]){
+        file_close(currentThread->fd[fd]);
+        currentThread->fd[fd] = NULL;
+      }
+    }
+  }
 }
