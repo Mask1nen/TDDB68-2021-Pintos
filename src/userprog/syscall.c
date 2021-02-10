@@ -1,11 +1,15 @@
 #include "userprog/syscall.h"
+#include "userprog/process.h"
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/init.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "devices/input.h"
+#include "lib/kernel/console.h"
 
 
 static void syscall_handler (struct intr_frame *);
@@ -20,58 +24,69 @@ static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
   char *syscall_num = f->esp;
-  printf("SYS_WRITE=%d\n",SYS_WRITE);
-  printf ("system call!\n=%d\n",*syscall_num);
-  char *name = f->esp + 4;
-  unsigned *size = (f->esp + 8);
-  printf("Hej!\n");
-  printf("name: %d\nsize: %i\n",*name, *size);
+  printf("%d\n",*syscall_num);
+  int *fd;
+  int *status;
+  unsigned *size;
+  void ** buf;
+
   switch (*syscall_num) {
     case SYS_HALT:
-      power_off();
+      halt();
       break;
 
     case SYS_CREATE:
-      f->eax = createFile(f->esp + 4);
+      f->eax = create(f->esp + 4);
       break;
 
     case SYS_OPEN:
-      f->eax = openFile(f->esp+4);
+      f->eax = open(f->esp + 4);
       break;
 
     case SYS_CLOSE:
-      ; // empty statement in order to declare int
-      int *fd = f->esp+4;
-      closeFile(*fd);
+      fd = f->esp + 4;
+      close(*fd);
       break;
 
     case SYS_READ:
-      //f->eax = readFile(f->esp+4);
+      fd = f->esp + 4;
+      buf = f->esp + 8;
+      size = f->esp + 12;
+      f->eax = read(*fd, *buf, *size);
       break;
 
     case SYS_WRITE:
-      //f->eax = writeFile(f->esp+4);
+      fd = f->esp + 4;
+      printf("%d\n",*fd);
+      buf = f->esp + 8;
+      size = f->esp + 12;
+      printf("%d\n",*size);
+      f->eax = write(*fd, *buf, *size);
       break;
 
     case SYS_EXIT:
-      //exit();
+      status = f->esp + 4;
+      exit(*status);
       break;
 
   }
   thread_exit ();
 }
 
+void
+halt(){
+  power_off();
+}
+
 bool
-createFile(void * esp){
+create(void * esp){
   char *name = esp;
   unsigned *size = (esp + 4);
-  printf("Hej!\n");
-  printf("name: %d\nsize: %i\n",*name, *size);
   return filesys_create(name, *size);
 }
 
 int
-openFile(void * esp) {
+open(void * esp) {
   struct thread *currentThread = thread_current();
   size_t arraySize = sizeof(currentThread->fd) / 4;
   if(arraySize < 130) {
@@ -89,7 +104,7 @@ openFile(void * esp) {
 }
 
 void
-closeFile(int fd){
+close(int fd){
   if(fd < 130 && fd > 1){
     struct thread *currentThread = thread_current();
     size_t arraySize = sizeof(currentThread->fd) / 4;
@@ -100,4 +115,44 @@ closeFile(int fd){
       }
     }
   }
+}
+
+int
+read(int fd, void * buf, unsigned size){
+  struct thread *currentThread = thread_current();
+  struct file *f = currentThread->fd[fd];
+  if(!f) return -1;
+  if(fd == 0){
+    uint8_t c[size];
+    for (size_t i = 0; i < size; i++) {
+      c[i] = input_getc();
+    }
+    memcpy(buf, (void*) &c, size);
+    int bytesw = sizeof(c) / sizeof(uint8_t);
+    return bytesw;
+  }
+  return file_read(f,buf,size);
+}
+
+int
+write(int fd, void * buf, unsigned size){
+  struct thread *currentThread = thread_current();
+  struct file *f = currentThread->fd[fd];
+  if(!f) return -1;
+  if(fd == 1){
+    putbuf((char*)buf, size);
+    return size;
+  }
+  return (int) file_write(f,buf,size);
+}
+
+void
+exit(int status){
+  struct thread *currentThread = thread_current();
+  for (size_t i = 2; i < 130; i++) {
+    if(currentThread->fd[i]){
+      close(i);
+    }
+  }
+  process_exit();
 }
