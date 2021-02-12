@@ -34,11 +34,10 @@ void prepend(listNode *first, int x){
 }
 
 void print(listNode *first){
+  printf("%i\n", first->val);
   if(first->next==NULL){
-    printf("%i\n", first->val);
     return;
   }else{
-    printf("%i\n", first->val);
     print(first->next);
   }
 }
@@ -54,7 +53,6 @@ void insert_sorted(listNode *first, int x){
 void clear(listNode *first){
   if(first->next == NULL && first->val == -1) return;
   if(first->next == NULL){
-    first->next = NULL;
     if(first->val != -1){
       free(first);
     }
