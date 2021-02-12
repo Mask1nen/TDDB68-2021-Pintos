@@ -24,23 +24,25 @@ static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
   char *syscall_num = f->esp;
-  printf("%d\n",*syscall_num);
   int *fd;
   int *status;
   unsigned *size;
   void ** buf;
-
+  void ** desp;
   switch (*syscall_num) {
     case SYS_HALT:
       halt();
       break;
 
     case SYS_CREATE:
-      f->eax = create(f->esp + 4);
+      desp = f->esp + 4;
+      unsigned *size = f->esp + 8;
+      f->eax = create((char*)*desp, *size);
       break;
 
     case SYS_OPEN:
-      f->eax = open(f->esp + 4);
+      desp = f->esp + 4;
+      f->eax = open(*desp);
       break;
 
     case SYS_CLOSE:
@@ -57,10 +59,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_WRITE:
       fd = f->esp + 4;
-      printf("%d\n",*fd);
       buf = f->esp + 8;
       size = f->esp + 12;
-      printf("%d\n",*size);
       f->eax = write(*fd, *buf, *size);
       break;
 
@@ -70,7 +70,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
 
   }
-  thread_exit ();
+  //thread_exit ();
 }
 
 void
@@ -79,28 +79,30 @@ halt(){
 }
 
 bool
-create(void * esp){
-  char *name = esp;
-  unsigned *size = (esp + 4);
-  return filesys_create(name, *size);
+create(const char* fname, unsigned size){
+  return filesys_create(fname, size);
 }
 
 int
 open(void * esp) {
   struct thread *currentThread = thread_current();
-  size_t arraySize = sizeof(currentThread->fd) / 4;
-  if(arraySize < 130) {
-    struct file *file = filesys_open(esp);
-    if(file) {
-      for (size_t i = 2; i < 130; i++) {
-        if(!currentThread->fd[i]) {
-          currentThread->fd[i] = file;
-          return i;
-        }
-      }
+  int fd = -1;
+  for (size_t i = 2; i < 130; i++) {
+    if(!currentThread->fd[i]) {
+      fd = i;
+      break;
+      printf("am not broken\n");
     }
   }
-  return -1;
+  if(fd != -1){
+    struct file *file = filesys_open((char*)esp);
+    if(file!=NULL){
+      currentThread->fd[fd]=file;
+    }else{
+      fd = -1;
+    }
+  }
+  return fd;
 }
 
 void
@@ -121,7 +123,7 @@ int
 read(int fd, void * buf, unsigned size){
   struct thread *currentThread = thread_current();
   struct file *f = currentThread->fd[fd];
-  if(!f) return -1;
+  if(f == NULL || fd == 1) return -1;
   if(fd == 0){
     uint8_t c[size];
     for (size_t i = 0; i < size; i++) {
@@ -129,21 +131,25 @@ read(int fd, void * buf, unsigned size){
     }
     memcpy(buf, (void*) &c, size);
     int bytesw = sizeof(c) / sizeof(uint8_t);
+    printf("bytesw: %d\n", bytesw);
     return bytesw;
   }
   return file_read(f,buf,size);
 }
 
 int
-write(int fd, void * buf, unsigned size){
+write(int fd, const void * buf, unsigned size){
   struct thread *currentThread = thread_current();
   struct file *f = currentThread->fd[fd];
-  if(!f) return -1;
+  const char* charbuf = buf;
+  if(f == NULL){
+    return -1;
+  }
   if(fd == 1){
-    putbuf((char*)buf, size);
+    putbuf(charbuf, (size_t) size);
     return size;
   }
-  return (int) file_write(f,buf,size);
+  return (int) file_write(f,buf,(off_t)size);
 }
 
 void
@@ -155,4 +161,5 @@ exit(int status){
     }
   }
   process_exit();
+  thread_exit();
 }

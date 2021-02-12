@@ -123,7 +123,7 @@ int main(void)
   }
 
   printf("\nDone!\n");
-  printf("Closing files");
+  printf("Closing files\n");
 
   for (i = 0; i < FD_TEST_COUNT; ++i)
   {

@@ -6,11 +6,11 @@
 
 void syscall_init (void);
 void halt(void);
-bool create(void * esp);
+bool create(const char* fname, unsigned size);
 int open(void * esp);
 void close(int fd);
 int read(int fd, void * buf, unsigned size);
-int write(int fd, void * buf, unsigned size);
+int write(int fd, const void * buf, unsigned size);
 void exit(int status);
 
 #endif /* userprog/syscall.h */
