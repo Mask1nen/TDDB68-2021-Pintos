@@ -32,37 +32,37 @@ syscall_handler (struct intr_frame *f UNUSED)
   switch (*syscall_num) {
     case SYS_HALT:
       halt();
-      break;
+      return;
 
     case SYS_CREATE:
       desp = f->esp + 4;
       unsigned *size = f->esp + 8;
       f->eax = create((char*)*desp, *size);
-      break;
+      return;
 
     case SYS_OPEN:
       desp = f->esp + 4;
       f->eax = open(*desp);
-      break;
+      return;
 
     case SYS_CLOSE:
       fd = f->esp + 4;
       close(*fd);
-      break;
+      return;
 
     case SYS_READ:
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
       f->eax = read(*fd, *buf, *size);
-      break;
+      return;
 
     case SYS_WRITE:
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
       f->eax = write(*fd, *buf, *size);
-      break;
+      return;
 
     case SYS_EXIT:
       status = f->esp + 4;
@@ -70,7 +70,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       break;
 
   }
-  //thread_exit ();
+  thread_exit();
 }
 
 void
@@ -88,10 +88,9 @@ open(void * esp) {
   struct thread *currentThread = thread_current();
   int fd = -1;
   for (size_t i = 2; i < 130; i++) {
-    if(!currentThread->fd[i]) {
+    if(currentThread->fd[i] == NULL) {
       fd = i;
       break;
-      printf("am not broken\n");
     }
   }
   if(fd != -1){
@@ -123,15 +122,15 @@ int
 read(int fd, void * buf, unsigned size){
   struct thread *currentThread = thread_current();
   struct file *f = currentThread->fd[fd];
-  if(f == NULL || fd == 1) return -1;
+  if((f == NULL && fd != 0) || fd == 1) return -1;
   if(fd == 0){
     uint8_t c[size];
     for (size_t i = 0; i < size; i++) {
       c[i] = input_getc();
+      printf("%c", c[i]);
     }
     memcpy(buf, (void*) &c, size);
     int bytesw = sizeof(c) / sizeof(uint8_t);
-    printf("bytesw: %d\n", bytesw);
     return bytesw;
   }
   return file_read(f,buf,size);
@@ -142,7 +141,7 @@ write(int fd, const void * buf, unsigned size){
   struct thread *currentThread = thread_current();
   struct file *f = currentThread->fd[fd];
   const char* charbuf = buf;
-  if(f == NULL){
+  if((f == NULL && fd != 1) || fd == 0){
     return -1;
   }
   if(fd == 1){
@@ -160,6 +159,5 @@ exit(int status){
       close(i);
     }
   }
-  process_exit();
-  thread_exit();
+  //process_exit();
 }

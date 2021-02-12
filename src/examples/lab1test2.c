@@ -186,7 +186,6 @@ int main(void)
   SUCCESS("TEST 5: Passed\n");
 
 
-
   TITLE("TEST 6: Reading from console\n");
   printf("Type 10 characters: ");
   bytes_read = read(STDIN_FILENO, sbuf, READ_CONSOLE_COUNT);
