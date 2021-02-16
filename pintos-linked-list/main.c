@@ -9,6 +9,7 @@ struct student {
 	struct list_elem elem;
 };
 
+bool keepRunning = true;
 
 void insert (struct list *student_list) {
 	printf("%s\n","Vad heter studenten?");
@@ -34,7 +35,6 @@ void delete (struct list *student_list) {
 		printf("checking: %s\n",std->name);
 		start = list_next(start);
 		std = list_entry(start, struct student, elem);
-		printf("checking: %s\n",std->name);
 	}
 	if(*std->name == *str && start != list_tail(student_list)) {
 		list_remove(start);
@@ -45,7 +45,7 @@ void delete (struct list *student_list) {
 		printf("%s", "Freed std\n");
 	}
 	else {
-		printf("Studenten finns inte i listan.");
+		printf("Studenten finns inte i listan.\n");
 	}
 }
 
@@ -62,14 +62,18 @@ void list (struct list *student_list) {
 void quit (struct list *student_list) {
 	struct list_elem *start = list_begin(student_list);
 	student *std = list_entry(start, struct student, elem);
-	while (start != list_tail(student_list)) {
-		start = list_next(start);
+	struct list_elem *startnext;
+	while (start != list_tail(student_list) && start != NULL) {
+		startnext = list_next(start);
+		list_remove(start);
 		free(std->name);
 		printf("%s", "Freed std->name\n");
 		free(std);
 		printf("%s", "Freed std\n");
+		start = startnext;
 		std = list_entry(start, struct student, elem);
 	}
+	keepRunning = false;
 }
 
 int main() {
@@ -115,7 +119,7 @@ int main() {
 					break;
 				}
 		}
-	} while(1);
+	} while(keepRunning);
 
 	return 0;
 }
