@@ -43,7 +43,7 @@ void print(listNode *first){
 }
 
 void insert_sorted(listNode *first, int x){
-  if(first->next->val > x || first->next == NULL){
+  if(first->next == NULL || first->next->val > x){
     prepend(first, x);
   }else{
     insert_sorted(first->next, x);
@@ -83,10 +83,14 @@ void test(listNode *first){
   prepend(first, 15);
   printf("%s\n", "after prepend on empty list");
   print(first);
-
-  for (size_t i = 10; i > 1; i-=2) {
+  clear(first);
+  insert_sorted(first, 13);
+  printf("%s\n", "after insert sorted on empty list");
+  print(first);
+  for (size_t i = 14; i > 1; i-=2) {
     insert_sorted(first, i);
   }
+  insert_sorted(first, 89);
   printf("%s\n", "after insert_sorted");
   print(first);
   clear(first);
