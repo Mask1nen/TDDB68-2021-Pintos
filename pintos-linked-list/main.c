@@ -63,11 +63,11 @@ void quit (struct list *student_list) {
 	struct list_elem *start = list_begin(student_list);
 	student *std = list_entry(start, struct student, elem);
 	while (start != list_tail(student_list)) {
+		start = list_next(start);
 		free(std->name);
 		printf("%s", "Freed std->name\n");
 		free(std);
 		printf("%s", "Freed std\n");
-		start = list_next(start);
 		std = list_entry(start, struct student, elem);
 	}
 }
