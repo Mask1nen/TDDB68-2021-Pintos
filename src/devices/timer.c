@@ -7,7 +7,8 @@
 #include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-#include "lib/kernel/list.h"
+#include "threads/malloc.h"
+
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -20,9 +21,6 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
-
-/* List of sleeping threads */
-struct list sleeping_threads;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -102,12 +100,26 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks)
 {
-  int64_t wakeup = timer_ticks() + ticks;
+  uint64_t time = timer_ticks();
+  uint64_t wakeup = time + ticks;
 
   ASSERT (intr_get_level () == INTR_ON);
-  //while (timer_elapsed (start) < ticks)
-  //  thread_yield ();
+  struct sleeper *node = (struct sleeper*)malloc(sizeof(struct sleeper));
+  struct semelem *semla = (struct semelem*)malloc(sizeof(struct semelem));
+  node->wakeup = wakeup;
+  node->t = thread_current();
+  semla->t = thread_current();
+  node->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
+  sema_init(node->sem, 0);
+  list_push_back(&node->sem->waiters, (struct list_elem*) semla);
+  list_insert_ordered(&sleeping_threads, (struct list_elem*)node, &comparator, NULL);
+  sema_down(node->sem);
+}
 
+bool comparator(const struct list_elem *A, const struct list_elem *B, void * aux){
+  int wakeupA = list_entry(A, struct sleeper, elem)->wakeup;
+  int wakeupB = list_entry(B, struct sleeper, elem)->wakeup;
+  return (wakeupA < wakeupB);
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -143,6 +155,15 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+  struct sleeper *s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
+  while (s->wakeup >= ticks && !list_empty(&sleeping_threads)) {
+    sema_up(s->sem);
+    /*list_remove(list_entry(list_begin(&s->sem->waiters), struct semelem, elem));
+    list_remove((struct list_elem*)s);*/
+    list_pop_front(&sleeping_threads);
+    list_pop_front(&s->sem->waiters);
+    s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
+  }
   thread_tick ();
 }
 
