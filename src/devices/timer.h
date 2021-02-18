@@ -11,13 +11,8 @@
 struct list sleeping_threads;
 
 struct sleeper {
-  uint64_t wakeup;
+  int64_t wakeup;
   struct semaphore *sem;
-  struct thread *t;
-  struct list_elem elem;
-};
-
-struct semelem {
   struct thread *t;
   struct list_elem elem;
 };

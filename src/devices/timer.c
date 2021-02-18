@@ -100,19 +100,16 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks)
 {
-  uint64_t time = timer_ticks();
-  uint64_t wakeup = time + ticks;
+  int64_t time = timer_ticks();
+  int64_t wakeup = time + ticks;
 
   ASSERT (intr_get_level () == INTR_ON);
   struct sleeper *node = (struct sleeper*)malloc(sizeof(struct sleeper));
-  struct semelem *semla = (struct semelem*)malloc(sizeof(struct semelem));
   node->wakeup = wakeup;
   node->t = thread_current();
-  semla->t = thread_current();
   node->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
   sema_init(node->sem, 0);
-  list_push_back(&node->sem->waiters, (struct list_elem*) semla);
-  list_insert_ordered(&sleeping_threads, (struct list_elem*)node, &comparator, NULL);
+  list_insert_ordered(&sleeping_threads, &node->elem, &comparator, NULL);
   sema_down(node->sem);
 }
 
@@ -155,14 +152,13 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
-  struct sleeper *s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
-  while (s->wakeup >= ticks && !list_empty(&sleeping_threads)) {
-    sema_up(s->sem);
-    /*list_remove(list_entry(list_begin(&s->sem->waiters), struct semelem, elem));
-    list_remove((struct list_elem*)s);*/
-    list_pop_front(&sleeping_threads);
-    list_pop_front(&s->sem->waiters);
-    s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
+  if(!list_empty(&sleeping_threads)){
+    struct sleeper *s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
+    while (!list_empty(&sleeping_threads) && s->wakeup <= ticks) {
+      sema_up(s->sem);
+      list_pop_front(&sleeping_threads);
+      s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
+    }
   }
   thread_tick ();
 }
