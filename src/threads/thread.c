@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #ifdef USERPROG
 #include "userprog/process.h"
+#include "userprog/syscall.h"
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -278,6 +279,12 @@ thread_exit (void)
   ASSERT (!intr_context ());
 
 #ifdef USERPROG
+  struct thread *current = thread_current();
+  for (size_t i = 2; i < 130; i++) {
+    if(current->fd[i]){
+      close(i);
+    }
+  }
   process_exit ();
 #endif
 

@@ -67,8 +67,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_EXIT:
       status = f->esp + 4;
       exit(*status);
-      break;
-
+      return;
   }
   thread_exit();
 }
@@ -153,11 +152,5 @@ write(int fd, const void * buf, unsigned size){
 
 void
 exit(int status){
-  struct thread *currentThread = thread_current();
-  for (size_t i = 2; i < 130; i++) {
-    if(currentThread->fd[i]){
-      close(i);
-    }
-  }
-  //process_exit();
+  thread_exit();
 }
