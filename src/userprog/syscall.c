@@ -1,15 +1,5 @@
 #include "userprog/syscall.h"
-#include "userprog/process.h"
-#include <stdio.h>
-#include <string.h>
-#include <syscall-nr.h>
-#include "threads/interrupt.h"
-#include "threads/thread.h"
-#include "threads/init.h"
-#include "filesys/filesys.h"
-#include "filesys/file.h"
-#include "devices/input.h"
-#include "lib/kernel/console.h"
+
 
 
 static void syscall_handler (struct intr_frame *);
@@ -62,6 +52,11 @@ syscall_handler (struct intr_frame *f UNUSED)
       buf = f->esp + 8;
       size = f->esp + 12;
       f->eax = write(*fd, *buf, *size);
+      return;
+
+    case SYS_EXEC:
+        desp = f->esp + 4;
+        f->eax = exec((char*)*desp);
       return;
 
     case SYS_EXIT:
@@ -152,5 +147,12 @@ write(int fd, const void * buf, unsigned size){
 
 void
 exit(int status){
+  printf("%s: exit(%d)\n", thread_name(), thread_current()->pc->exit_status);
   thread_exit();
+}
+
+tid_t
+exec(const char* cmdline){
+  tid_t pid = process_execute(cmdline);
+  return pid;
 }

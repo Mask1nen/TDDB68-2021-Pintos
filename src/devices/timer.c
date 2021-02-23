@@ -157,6 +157,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
     while (!list_empty(&sleeping_threads) && s->wakeup <= ticks) {
       sema_up(s->sem);
       list_pop_front(&sleeping_threads);
+      free(s->sem);
+      free(s);
       s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
     }
   }
