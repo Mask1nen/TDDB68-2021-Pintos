@@ -21,7 +21,7 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
-
+struct lock l;
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
@@ -42,7 +42,7 @@ timer_init (void)
   uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
   /* Inits list of sleeping threads */
   list_init(&sleeping_threads);
-
+  lock_init(&l);
   outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
   outb (0x40, count & 0xff);
   outb (0x40, count >> 8);
@@ -109,8 +109,12 @@ timer_sleep (int64_t ticks)
   node->t = thread_current();
   node->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
   sema_init(node->sem, 0);
+  lock_acquire(&l);
   list_insert_ordered(&sleeping_threads, &node->elem, &comparator, NULL);
+  lock_release(&l);
   sema_down(node->sem);
+  free(node->sem);
+  free(node);
 }
 
 bool comparator(const struct list_elem *A, const struct list_elem *B, void * aux){
@@ -156,7 +160,9 @@ timer_interrupt (struct intr_frame *args UNUSED)
     struct sleeper *s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
     while (!list_empty(&sleeping_threads) && s->wakeup <= ticks) {
       sema_up(s->sem);
+      enum intr_level old_level = intr_disable();
       list_pop_front(&sleeping_threads);
+      intr_set_level(old_level);
       s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
     }
   }
