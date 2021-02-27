@@ -162,12 +162,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
       sema_up(s->sem);
       enum intr_level old_level = intr_disable();
       list_pop_front(&sleeping_threads);
-<<<<<<< HEAD
       intr_set_level(old_level);
-=======
-      free(s->sem);
-      free(s);
->>>>>>> 44d4d0413b405aa96aafea7252f3f1d33b05343c
       s = list_entry(list_begin(&sleeping_threads), struct sleeper, elem);
     }
   }
