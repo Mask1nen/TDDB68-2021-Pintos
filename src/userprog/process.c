@@ -15,6 +15,7 @@
 #include "threads/init.h"
 #include "threads/interrupt.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
@@ -28,29 +29,40 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name)
 {
-  char *fn_copy;
   tid_t tid;
+
+  struct arg_info *ai = malloc(sizeof(struct arg_info));
+  sema_init(&ai->sem, 0);
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  fn_copy = palloc_get_page (0);
-  if (fn_copy == NULL)
+  ai->fname = palloc_get_page (0);
+  if (ai->fname == NULL)
     return TID_ERROR;
-  strlcpy (fn_copy, file_name, PGSIZE);
-
+  strlcpy (ai->fname, file_name, PGSIZE);
+  ai->parent = thread_current();
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, ai);
+  sema_down(&ai->sem);
+  if(!ai->success) {
+    tid = TID_ERROR;
+  }
+  else {
+
+  }
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy);
+    palloc_free_page (ai->fname);
+  free(ai);
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *vai)
 {
-  char *file_name = file_name_;
+  struct arg_info *ai = (struct arg_info*) vai;
+  char *file_name = ai->fname;
   struct intr_frame if_;
   bool success;
 
@@ -60,11 +72,25 @@ start_process (void *file_name_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (file_name, &if_.eip, &if_.esp);
+  ai->success = success;
+  if (success) {
+    struct parent_child *pc = malloc(sizeof(struct parent_child));
+    pc->alive_count = 2;
+    pc->exit_status = -1;
+    thread_current()->pc = pc;
+    ai->parent->pc = pc;
+    list_push_back(ai->parent->children, &pc->elem);
+    sema_up(&ai->sem);
+  }
+
 
   /* If load failed, quit. */
-  palloc_free_page (file_name);
-  if (!success)
+  if (!success) {
+    sema_up(&ai->sem);
+    palloc_free_page (file_name);
     thread_exit ();
+  }
+
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -116,6 +142,7 @@ process_exit (void)
       cur->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
+      cur->pc->exit_status = 0;
     }
 }
 
