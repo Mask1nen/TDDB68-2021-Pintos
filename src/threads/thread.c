@@ -286,19 +286,22 @@ thread_exit (void)
       close(i);
     }
   }
-  struct list_elem *celem = list_begin(thread_current()->children);
+
+  struct list_elem *celem = list_begin(&thread_current()->children);
   struct parent_child *pc = list_entry(celem, struct parent_child, elem);
   do{
-    if (pc->alive_count <= 1){
-      list_remove(celem);
-      free(pc);
+    if((celem && celem != list_tail(&thread_current()->children))  && pc){
+      if (pc->alive_count <= 1){
+        list_remove(celem);
+        free(pc);
+      }
+      else {
+        pc->alive_count--;
+      }
+      celem = list_next(celem);
+      pc = list_entry(celem, struct parent_child, elem);
     }
-    else {
-      pc->alive_count--;
-    }
-    celem = list_next(celem);
-    pc = list_entry(list_next(celem), struct parent_child, elem);
-  }while(celem != list_tail(thread_current()->children));
+  }while(celem != list_tail(&thread_current()->children));
 
   process_exit ();
 #endif
@@ -460,7 +463,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   #ifdef USERPROG
-    list_init(thread_current()->children);
+    list_init(&t->children);
     t->fd[0] = STDIN_FILENO;
     t->fd[1] = STDOUT_FILENO;
   #endif

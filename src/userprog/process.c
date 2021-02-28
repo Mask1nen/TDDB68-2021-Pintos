@@ -31,8 +31,9 @@ process_execute (const char *file_name)
 {
   tid_t tid;
 
-  struct arg_info *ai = malloc(sizeof(struct arg_info));
-  sema_init(&ai->sem, 0);
+  struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
+  ai->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
+  sema_init(ai->sem, 0);
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -43,15 +44,14 @@ process_execute (const char *file_name)
   ai->parent = thread_current();
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, ai);
-  sema_down(&ai->sem);
+  sema_down(ai->sem);
   if(!ai->success) {
     tid = TID_ERROR;
   }
-  else {
 
-  }
   if (tid == TID_ERROR)
     palloc_free_page (ai->fname);
+  free(ai->sem);
   free(ai);
   return tid;
 }
@@ -74,19 +74,19 @@ start_process (void *vai)
   success = load (file_name, &if_.eip, &if_.esp);
   ai->success = success;
   if (success) {
-    struct parent_child *pc = malloc(sizeof(struct parent_child));
+    struct parent_child *pc = (struct parent_child*)malloc(sizeof(struct parent_child));
     pc->alive_count = 2;
     pc->exit_status = -1;
     thread_current()->pc = pc;
     ai->parent->pc = pc;
-    list_push_back(ai->parent->children, &pc->elem);
-    sema_up(&ai->sem);
+    list_push_back(&ai->parent->children, &pc->elem);
+    sema_up(ai->sem);
   }
 
 
   /* If load failed, quit. */
   if (!success) {
-    sema_up(&ai->sem);
+    sema_up(ai->sem);
     palloc_free_page (file_name);
     thread_exit ();
   }

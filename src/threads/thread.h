@@ -89,7 +89,7 @@ struct parent_child {
 };
 
 struct arg_info{
-  struct semaphore sem;
+  struct semaphore *sem;
   bool success;
   struct thread *parent;
   char *fname;
@@ -111,7 +111,7 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd[130];
     struct parent_child *pc;
-    struct list *children;
+    struct list children;
 #endif
 
     /* Owned by thread.c. */
