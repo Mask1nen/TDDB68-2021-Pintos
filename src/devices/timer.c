@@ -42,7 +42,7 @@ timer_init (void)
   uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
   /* Inits list of sleeping threads */
   list_init(&sleeping_threads);
-  lock_init(&l);
+  //lock_init(&l);
   outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
   outb (0x40, count & 0xff);
   outb (0x40, count >> 8);
@@ -109,10 +109,13 @@ timer_sleep (int64_t ticks)
   node->t = thread_current();
   node->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
   sema_init(node->sem, 0);
-  lock_acquire(&l);
+  //lock_acquire(&l);
+  enum intr_level old_level = intr_disable();
   list_insert_ordered(&sleeping_threads, &node->elem, &comparator, NULL);
-  lock_release(&l);
+  //lock_release(&l);
+  intr_set_level(old_level);
   sema_down(node->sem);
+
   free(node->sem);
   free(node);
 }
