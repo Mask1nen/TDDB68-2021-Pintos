@@ -95,6 +95,17 @@ struct arg_info{
   char *fname;
 };
 
+
+
+/*
+FIXA LAB3:
+- kolla parent alive_count
+- fixa exit status delning från child till parent_child
+- flytta om borttagning och nästa elem i thread_exit
+- synkronisera alive_count
+*/
+
+
 struct thread
   {
     /* Owned by thread.c. */
