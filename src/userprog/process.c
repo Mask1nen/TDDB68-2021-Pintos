@@ -19,6 +19,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -30,7 +32,7 @@ tid_t
 process_execute (const char *file_name)
 {
   tid_t tid;
-
+  printf("argument file_name = %d\n", *file_name);
   struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
   ai->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
   sema_init(ai->sem, 0);
@@ -41,16 +43,20 @@ process_execute (const char *file_name)
   if (ai->fname == NULL)
     return TID_ERROR;
   strlcpy (ai->fname, file_name, PGSIZE);
+  printf("PGSIZE = %d\n", PGSIZE);
+  printf("fname = %s\n", ai->fname);
   ai->parent = thread_current();
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, ai);
-  sema_down(ai->sem);
+
   if(!ai->success) {
     tid = TID_ERROR;
   }
-
-  if (tid == TID_ERROR)
+  if(tid != TID_ERROR){
+    sema_down(ai->sem);
+  }else{
     palloc_free_page (ai->fname);
+  }
   free(ai->sem);
   free(ai);
   return tid;
@@ -78,7 +84,7 @@ start_process (void *vai)
     pc->alive_count = 2;
     pc->exit_status = -1;
     thread_current()->pc = pc;
-    ai->parent->pc = pc;
+    //ai->parent->pc = pc;
     list_push_back(&ai->parent->children, &pc->elem);
     sema_up(ai->sem);
   }
@@ -114,9 +120,11 @@ start_process (void *vai)
 int
 process_wait (tid_t child_tid UNUSED)
 {
+  printf("in\n");
   while(true){
 
   }
+  printf("out\n");
   return -1;
 }
 
@@ -238,6 +246,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp)
 {
+
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -255,11 +264,25 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (!setup_stack (esp)){
     goto done;
   }
+  /*
+  char *file_name = strtok_r (cmd_line, " ", &save_ptr);
+  void *new_esp = *esp;
+  char * argv[32];
 
+
+  for (token = strtok_r (cmd_line, " ", &save_ptr); token != NULL;
+    token = strtok_r (NULL, " ", &save_ptr))
+  {
+    char n = sizeof(token);
+    memcpy(*new_esp, token, n);
+    new_esp -= sizeof(token);
+  }
+  memset(new_esp, 0, p1)
+*/
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-/*#define STACK_DEBUG*/
+//#define STACK_DEBUG
 
 #ifdef STACK_DEBUG
   printf("*esp is %p\nstack contents:\n", *esp);
@@ -293,7 +316,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     i++;
   }
 #endif
-
+printf("finished stack print\n");
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL)
@@ -506,7 +529,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12; //TODO remove -12 later?;
+        *esp = PHYS_BASE - 12;
       else
         palloc_free_page (kpage);
     }

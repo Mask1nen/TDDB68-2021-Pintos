@@ -21,26 +21,31 @@ syscall_handler (struct intr_frame *f UNUSED)
   void ** desp;
   switch (*syscall_num) {
     case SYS_HALT:
+      printf("1\n");
       halt();
       return;
 
     case SYS_CREATE:
+      printf("2\n");
       desp = f->esp + 4;
       unsigned *size = f->esp + 8;
       f->eax = create((char*)*desp, *size);
       return;
 
     case SYS_OPEN:
+      printf("3\n");
       desp = f->esp + 4;
       f->eax = open(*desp);
       return;
 
     case SYS_CLOSE:
+      printf("4\n");
       fd = f->esp + 4;
       close(*fd);
       return;
 
     case SYS_READ:
+      printf("5\n");
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
@@ -48,6 +53,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       return;
 
     case SYS_WRITE:
+      printf("6\n");
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
@@ -55,11 +61,13 @@ syscall_handler (struct intr_frame *f UNUSED)
       return;
 
     case SYS_EXEC:
+      printf("7\n");
         desp = f->esp + 4;
         f->eax = exec((char*)*desp);
       return;
 
     case SYS_EXIT:
+      printf("8\n");
       status = f->esp + 4;
       exit(*status);
       return;
@@ -153,6 +161,7 @@ exit(int status){
 
 tid_t
 exec(const char* cmdline){
+  printf("EXEC!\n");
   tid_t pid = process_execute(cmdline);
   return pid;
 }
