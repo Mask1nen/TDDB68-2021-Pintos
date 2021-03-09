@@ -82,27 +82,10 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
-struct parent_child {
-     int exit_status;
-     int alive_count;
-     struct list_elem elem;
-};
-
-struct arg_info{
-  struct semaphore *sem;
-  bool success;
-  struct thread *parent;
-  char *fname;
-};
-
-
 
 /*
 FIXA LAB3:
-- kolla parent alive_count
 - fixa exit status delning från child till parent_child
-- flytta om borttagning och nästa elem i thread_exit
-- synkronisera alive_count
 */
 
 
@@ -118,11 +101,25 @@ struct thread
     struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
+struct parent_child {
+     int exit_status;
+     int alive_count;
+     struct list_elem elem;
+};
+
+struct arg_info{
+  struct semaphore sem;
+  bool success;
+  struct thread *parent;
+  char* fname;
+};
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd[130];
     struct parent_child *pc;
     struct list children;
+    struct thread *parent;
+
 #endif
 
     /* Owned by thread.c. */

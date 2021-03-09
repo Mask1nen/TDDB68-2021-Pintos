@@ -186,7 +186,7 @@ thread_create (const char *name, int priority,
   kf->eip = NULL;
   kf->function = function;
   kf->aux = aux;
-  printf("stackframe made \n");
+  //printf("stackframe made \n");
   /* Stack frame for switch_entry(). */
   ef = alloc_frame (t, sizeof *ef);
   ef->eip = (void (*) (void)) kernel_thread;
@@ -281,29 +281,66 @@ thread_exit (void)
 
 #ifdef USERPROG
   struct thread *current = thread_current();
+  struct lock l;
+  lock_init(&l);
   for (size_t i = 2; i < 130; i++) {
     if(current->fd[i]){
       close(i);
     }
   }
 
-  struct list_elem *celem = list_begin(&thread_current()->children);
-  struct parent_child *pc = list_entry(celem, struct parent_child, elem);
+
+
+  if(current->parent && current->pc && current->pc->alive_count <= 1) {
+    //enum intr_level old_level = intr_disable();
+    printf("thread %d freed pc: %x with parent\n", thread_tid(), current->pc);
+    lock_acquire(&l);
+    free(current->pc);
+    lock_release(&l);
+    //intr_set_level(old_level);
+  }
+  else {
+    //enum intr_level old_level = intr_disable();
+    lock_acquire(&l);
+    current->pc->alive_count--;
+    lock_release(&l);
+    //intr_set_level(old_level);
+    printf("thread %d decrement pc: %x in struct with parent\nnew value: %d\n", thread_tid(), current->pc, current->pc->alive_count);
+  }
+
+
+  struct list_elem *celem = list_begin(&current->children);
+  struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
+  struct list_elem *next_celem;
   do{
-    if((celem && celem != list_tail(&thread_current()->children))  && pc){
-      if (pc->alive_count <= 1){
+    if((celem && celem != list_tail(&current->children)) && current_pc){
+      next_celem = list_next(celem);
+      if (current_pc->alive_count <= 1){
+        //enum intr_level old_level = intr_disable();
+        lock_acquire(&l);
         list_remove(celem);
-        free(pc);
+        lock_release(&l);
+        //intr_set_level(old_level);
+        printf("thread %d freed pc: %x with child\n", thread_tid(), current_pc);
+        free(current_pc);
       }
       else {
-        pc->alive_count--;
+        //enum intr_level old_level = intr_disable();
+        lock_acquire(&l);
+        current_pc->alive_count--;
+        lock_release(&l);
+        //intr_set_level(old_level);
+        printf("thread %d decrement pc: %x in struct with child\nnew value: %d\n", thread_tid(), current_pc, current_pc->alive_count);
       }
-      celem = list_next(celem);
-      pc = list_entry(celem, struct parent_child, elem);
+      celem = next_celem;
+      if(celem) {
+        current_pc = list_entry(celem, struct parent_child, elem);
+      }
     }
-  }while(celem != list_tail(&thread_current()->children));
+  }while(celem != list_tail(&current->children));
 
   process_exit ();
+  printf("%s: exit(%d)\n", thread_name(), thread_current()->pc->exit_status);
 #endif
 
   /* Just set our status to dying and schedule another process.

@@ -32,32 +32,26 @@ tid_t
 process_execute (const char *file_name)
 {
   tid_t tid;
-  printf("argument file_name = %d\n", *file_name);
   struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
-  ai->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
-  sema_init(ai->sem, 0);
+  sema_init(&ai->sem, 0);
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
-  ai->fname = palloc_get_page (0);
+  ai->fname = palloc_get_page(0);
   if (ai->fname == NULL)
     return TID_ERROR;
   strlcpy (ai->fname, file_name, PGSIZE);
-  printf("PGSIZE = %d\n", PGSIZE);
-  printf("fname = %s\n", ai->fname);
   ai->parent = thread_current();
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, ai);
+  tid = thread_create (ai->fname, PRI_DEFAULT, start_process, ai);
+  sema_down(&ai->sem);
 
   if(!ai->success) {
     tid = TID_ERROR;
   }
-  if(tid != TID_ERROR){
-    sema_down(ai->sem);
-  }else{
-    palloc_free_page (ai->fname);
-  }
-  free(ai->sem);
+
+  //free(ai->sem);
+  palloc_free_page(ai->fname);
   free(ai);
   return tid;
 }
@@ -68,7 +62,7 @@ static void
 start_process (void *vai)
 {
   struct arg_info *ai = (struct arg_info*) vai;
-  char *file_name = ai->fname;
+  const char *file_name = ai->fname;
   struct intr_frame if_;
   bool success;
 
@@ -84,16 +78,16 @@ start_process (void *vai)
     pc->alive_count = 2;
     pc->exit_status = -1;
     thread_current()->pc = pc;
-    //ai->parent->pc = pc;
+    thread_current()->parent = ai->parent;
+    printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
     list_push_back(&ai->parent->children, &pc->elem);
-    sema_up(ai->sem);
+    sema_up(&ai->sem);
   }
 
 
   /* If load failed, quit. */
   if (!success) {
-    sema_up(ai->sem);
-    palloc_free_page (file_name);
+    sema_up(&ai->sem);
     thread_exit ();
   }
 
@@ -120,7 +114,6 @@ start_process (void *vai)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  printf("in\n");
   while(true){
 
   }
@@ -151,7 +144,9 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
       cur->pc->exit_status = 0;
+      return;
     }
+  cur->pc->exit_status = -1;
 }
 
 /* Sets up the CPU for running user code in the current
@@ -316,7 +311,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     i++;
   }
 #endif
-printf("finished stack print\n");
+//printf("finished stack print\n");
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL)
