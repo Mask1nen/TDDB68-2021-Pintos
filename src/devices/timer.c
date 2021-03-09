@@ -109,10 +109,8 @@ timer_sleep (int64_t ticks)
   node->t = thread_current();
   node->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
   sema_init(node->sem, 0);
-  //lock_acquire(&l);
   enum intr_level old_level = intr_disable();
   list_insert_ordered(&sleeping_threads, &node->elem, &comparator, NULL);
-  //lock_release(&l);
   intr_set_level(old_level);
   sema_down(node->sem);
 
