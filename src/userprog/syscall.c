@@ -60,8 +60,8 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_EXEC:
       printf("EXEC!\n");
-        desp = f->esp + 4;
-        f->eax = exec((char*)*desp);
+      desp = f->esp + 4;
+      f->eax = exec((char*)*desp);
       return;
 
     case SYS_EXIT:
@@ -70,7 +70,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       exit(*status);
       return;
   }
-  thread_exit();
+  //thread_exit();
 }
 
 void

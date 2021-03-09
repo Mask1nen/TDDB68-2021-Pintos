@@ -87,7 +87,21 @@ typedef int tid_t;
 FIXA LAB3:
 - fixa exit status delning från child till parent_child
 */
+#ifdef USERPROG
+struct parent_child {
+     int exit_status;
+     int alive_count;
+     struct list_elem elem;
+};
 
+struct arg_info{
+  struct semaphore sem;
+  bool success;
+  struct thread *parent;
+  char* cmd_line;
+  char* fname;
+};
+#endif
 
 struct thread
   {
@@ -101,18 +115,7 @@ struct thread
     struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
-struct parent_child {
-     int exit_status;
-     int alive_count;
-     struct list_elem elem;
-};
 
-struct arg_info{
-  struct semaphore sem;
-  bool success;
-  struct thread *parent;
-  char* fname;
-};
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd[130];

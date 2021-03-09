@@ -29,7 +29,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name)
+process_execute (const char *cmd_line)
 {
   tid_t tid;
   struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
@@ -37,6 +37,12 @@ process_execute (const char *file_name)
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
+
+  ai->cmd_line = cmd_line;
+  char *token;
+  char *save_ptr;
+  char *file_name = strtok_r (cmd_line, " ", &save_ptr);
+
   ai->fname = palloc_get_page(0);
   if (ai->fname == NULL)
     return TID_ERROR;
@@ -62,7 +68,7 @@ static void
 start_process (void *vai)
 {
   struct arg_info *ai = (struct arg_info*) vai;
-  const char *file_name = ai->fname;
+  //const char *file_name = ai->fname;
   struct intr_frame if_;
   bool success;
 
@@ -71,7 +77,7 @@ start_process (void *vai)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (ai->cmd_line, &if_.eip, &if_.esp);
   ai->success = success;
   if (success) {
     struct parent_child *pc = (struct parent_child*)malloc(sizeof(struct parent_child));
@@ -80,7 +86,7 @@ start_process (void *vai)
     thread_current()->pc = pc;
     thread_current()->parent = ai->parent;
     printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
-    list_push_back(&ai->parent->children, &pc->elem);
+    list_push_back(&thread_current()->parent->children, &pc->elem);
     sema_up(&ai->sem);
   }
 
@@ -88,6 +94,7 @@ start_process (void *vai)
   /* If load failed, quit. */
   if (!success) {
     sema_up(&ai->sem);
+    printf("failed to load");
     thread_exit ();
   }
 
@@ -239,7 +246,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp)
+load (const char *cmd_line, void (**eip) (void), void **esp)
 {
 
   struct thread *t = thread_current ();
@@ -259,25 +266,37 @@ load (const char *file_name, void (**eip) (void), void **esp)
   if (!setup_stack (esp)){
     goto done;
   }
-  /*
+
+  char *token;
+  char *save_ptr;
   char *file_name = strtok_r (cmd_line, " ", &save_ptr);
+  printf("file_name in load:\t");
+  printf(file_name);
+  printf("\n");
+  printf("rest of cmd_line: \t");
+  printf(cmd_line);
+  printf("\n");
   void *new_esp = *esp;
   char * argv[32];
-
-
+  int argc = 0;
   for (token = strtok_r (cmd_line, " ", &save_ptr); token != NULL;
     token = strtok_r (NULL, " ", &save_ptr))
   {
-    char n = sizeof(token);
-    memcpy(*new_esp, token, n);
+    printf("token: %s", token);
+    char n = strlen(token);
+    memcpy(new_esp, token, n);
     new_esp -= sizeof(token);
+    argv[argc] = token;
+    argc++;
   }
-  memset(new_esp, 0, p1)
-*/
+  for (size_t i = 0; i < 32; i++) {
+    printf("word %i is %s\t", i, argv[i]);
+  }
+  memset(new_esp, 0, 1);
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-//#define STACK_DEBUG
+#define STACK_DEBUG
 
 #ifdef STACK_DEBUG
   printf("*esp is %p\nstack contents:\n", *esp);
@@ -524,7 +543,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 12;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }

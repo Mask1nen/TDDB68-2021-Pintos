@@ -289,9 +289,7 @@ thread_exit (void)
     }
   }
 
-
-
-  if(current->parent && current->pc && current->pc->alive_count <= 1) {
+  if((current->pc->alive_count <= 1 && current->pc->alive_count >= 0) && current->pc) {
     //enum intr_level old_level = intr_disable();
     printf("thread %d freed pc: %x with parent\n", thread_tid(), current->pc);
     lock_acquire(&l);
@@ -318,7 +316,7 @@ thread_exit (void)
       if (current_pc->alive_count <= 1){
         //enum intr_level old_level = intr_disable();
         lock_acquire(&l);
-        list_remove(celem);
+        //list_remove(celem);
         lock_release(&l);
         //intr_set_level(old_level);
         printf("thread %d freed pc: %x with child\n", thread_tid(), current_pc);
