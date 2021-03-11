@@ -38,12 +38,15 @@ process_execute (const char *cmd_line)
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
 
-  ai->cmd_line = cmd_line;
-  char *token;
+  ai->cmd_line = palloc_get_page (0);
+  if (cmd_line == NULL)
+    return TID_ERROR;
+  strlcpy (ai->cmd_line, cmd_line, PGSIZE);
+
   char *save_ptr;
   char *file_name = strtok_r (cmd_line, " ", &save_ptr);
 
-  ai->fname = palloc_get_page(0);
+  ai->fname = palloc_get_page (0);
   if (ai->fname == NULL)
     return TID_ERROR;
   strlcpy (ai->fname, file_name, PGSIZE);
@@ -57,7 +60,8 @@ process_execute (const char *cmd_line)
   }
 
   //free(ai->sem);
-  palloc_free_page(ai->fname);
+  palloc_free_page (ai->fname);
+  palloc_free_page (ai->cmd_line);
   free(ai);
   return tid;
 }
@@ -269,34 +273,66 @@ load (const char *cmd_line, void (**eip) (void), void **esp)
 
   char *token;
   char *save_ptr;
-  char *file_name = strtok_r (cmd_line, " ", &save_ptr);
-  printf("file_name in load:\t");
-  printf(file_name);
-  printf("\n");
-  printf("rest of cmd_line: \t");
-  printf(cmd_line);
-  printf("\n");
+
+  char* file_name;
+
   void *new_esp = *esp;
   char * argv[32];
   int argc = 0;
   for (token = strtok_r (cmd_line, " ", &save_ptr); token != NULL;
     token = strtok_r (NULL, " ", &save_ptr))
   {
-    printf("token: %s", token);
-    char n = strlen(token);
+    if(argc == 0) {
+      file_name = token;
+    }
+    /*else {
+      printf("writing from %x to %x as %i characters\n", new_esp, new_esp - (strlen(token) + 1), strlen(token));
+      int n = strlen(token) + 1;
+      new_esp -= strlen(token) + 1;
+      memcpy(new_esp, token, n);
+      argv[argc] = new_esp;
+    } */
+    //printf("writing from %x to %x as %i characters\n", new_esp, new_esp - (strlen(token) + 1), strlen(token));
+    int n = strlen(token) + 1;
+    new_esp -= strlen(token) + 1;
     memcpy(new_esp, token, n);
-    new_esp -= sizeof(token);
-    argv[argc] = token;
+    argv[argc] = new_esp;
+
     argc++;
+    if(argc >= 31) {
+      break;
+    }
   }
-  for (size_t i = 0; i < 32; i++) {
-    printf("word %i is %s\t", i, argv[i]);
+  argv[argc] = NULL;
+
+  while((int)new_esp % 4 != 0) {
+    new_esp--;
   }
+  for (int i = argc; i >= 0; i--) {
+    //printf("writing from %x to %x as %i characters\n", new_esp, new_esp - sizeof(char*), sizeof(char*));
+    int n = sizeof(char*);
+    new_esp -= sizeof(char*);
+    memcpy(new_esp, &argv[i], n);
+  }
+
+  //printf("writing from %x to %x as %i characters\n", new_esp, new_esp - sizeof(char**), sizeof(char**));
+  char *argv_ptr = new_esp;
+  new_esp -= sizeof(char**);
+  memcpy(new_esp, &argv_ptr, sizeof(char**));
+
+  //printf("writing from %x to %x as %i characters\n", new_esp, new_esp - sizeof(int), sizeof(int));
+  new_esp -= sizeof(argc);
+  memcpy(new_esp, &argc, sizeof(int));
+
+  new_esp -= sizeof(int);
   memset(new_esp, 0, 1);
+
+  *esp = new_esp;
+
    /* Uncomment the following line to print some debug
      information. This will be useful when you debug the program
      stack.*/
-#define STACK_DEBUG
+//#define STACK_DEBUG
 
 #ifdef STACK_DEBUG
   printf("*esp is %p\nstack contents:\n", *esp);
