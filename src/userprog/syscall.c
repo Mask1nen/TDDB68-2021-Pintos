@@ -1,4 +1,6 @@
 #include "userprog/syscall.h"
+#include "threads/vaddr.h"
+#include "pagedir.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -11,6 +13,9 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
+  if(!validate_esp(f->esp)) {
+    exit(-1);
+  }
   char *syscall_num = f->esp;
   int *fd;
   int *status;
@@ -27,13 +32,23 @@ syscall_handler (struct intr_frame *f UNUSED)
       printf("CREATE!\n");
       desp = f->esp + 4;
       unsigned *size = f->esp + 8;
-      f->eax = create((char*)*desp, *size);
+      if(validate_pointer(desp) && validate_pointer(size)) {
+        if(validate_string(*desp)) {
+          f->eax = create((char*)*desp, *size);
+          return;
+        }
+      }
+      exit(-1);
       return;
 
     case SYS_OPEN:
       printf("OPEN!\n");
       desp = f->esp + 4;
-      f->eax = open(*desp);
+      if(validate_pointer(desp)) {
+        f->eax = open(*desp);
+        return;
+      }
+      exit(-1);
       return;
 
     case SYS_CLOSE:
@@ -47,7 +62,13 @@ syscall_handler (struct intr_frame *f UNUSED)
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
-      f->eax = read(*fd, *buf, *size);
+      if(validate_pointer(buf) && validate_pointer(size)) {
+        if(validate_buffer(*buf, *size)) {
+          f->eax = read(*fd, *buf, *size);
+          return;
+        }
+      }
+      exit(-1);
       return;
 
     case SYS_WRITE:
@@ -55,22 +76,48 @@ syscall_handler (struct intr_frame *f UNUSED)
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
-      f->eax = write(*fd, *buf, *size);
+      if(validate_pointer(buf) && validate_pointer(size) && validate_pointer(fd)) {
+        if(validate_buffer(*buf, *size)) {
+          f->eax = write(*fd, *buf, *size);
+          return;
+        }
+      }
+      exit(-1);
       return;
 
     case SYS_EXEC:
       printf("EXEC!\n");
       desp = f->esp + 4;
-      f->eax = exec((char*)*desp);
+      if(validate_pointer(desp)) {
+        if(validate_string(*desp)) {
+          f->eax = exec((char*)*desp);
+          return;
+        }
+      }
+      exit(-1);
       return;
 
     case SYS_EXIT:
       printf("EXIT!\n");
       status = f->esp + 4;
-      exit(*status);
+      if(validate_pointer(status)) {
+        exit(*status);
+        return;
+      }
+      exit(-1);
+      return;
+
+    case SYS_WAIT:
+      printf("WAIT!\n");
+      desp = f->esp + 4;
+      if(validate_pointer(desp)) {
+        wait((tid_t)*desp);
+        return;
+      }
+      exit(-1);
       return;
   }
-  //thread_exit();
+  thread_exit();
 }
 
 void
@@ -153,6 +200,7 @@ write(int fd, const void * buf, unsigned size){
 
 void
 exit(int status){
+  thread_current()->pc->exit_status = status;
   thread_exit();
 }
 
@@ -160,4 +208,46 @@ tid_t
 exec(const char* cmdline){
   tid_t pid = process_execute(cmdline);
   return pid;
+}
+
+int
+wait(tid_t pid){
+  return process_wait(pid);
+}
+
+bool validate_pointer(void *pntr) {
+  if(!pntr) {
+    return false;
+  }
+  else if(!is_user_vaddr(pntr)) {
+    return false;
+  }
+  else if(pagedir_get_page(thread_current()->pagedir, pntr) == NULL) {
+    return false;
+  }
+  return true;
+}
+
+bool validate_string(char *string) {
+  int counter = 0;
+  while(true) {
+    if(!validate_pointer((void*)string[counter])) {
+      return false;
+    }
+    else if(string[counter] == '\0') return true;
+    counter++;
+  }
+}
+
+bool validate_buffer(void *buffer, int size) {
+  for (int i = (int)buffer; i < (int)buffer + size; i++) {
+    if(!validate_pointer((void*)i)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool validate_esp(void *esp) {
+  return (esp == PHYS_BASE);
 }

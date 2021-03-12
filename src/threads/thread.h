@@ -91,6 +91,7 @@ FIXA LAB3:
 struct parent_child {
      int exit_status;
      int alive_count;
+     struct thread *child;
      struct list_elem elem;
 };
 
@@ -120,6 +121,7 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd[130];
     struct parent_child *pc;
+    struct semaphore s;
     struct list children;
     struct thread *parent;
 

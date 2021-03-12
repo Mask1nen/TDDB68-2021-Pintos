@@ -198,6 +198,7 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  sema_init(&thread_current()->s, 1);
   return tid;
 }
 
@@ -290,12 +291,10 @@ thread_exit (void)
   }
 
   if((current->pc->alive_count <= 1 && current->pc->alive_count >= 0) && current->pc) {
-    //enum intr_level old_level = intr_disable();
     printf("thread %d freed pc: %x with parent\n", thread_tid(), current->pc);
     lock_acquire(&l);
     free(current->pc);
     lock_release(&l);
-    //intr_set_level(old_level);
   }
   else {
     //enum intr_level old_level = intr_disable();
@@ -314,20 +313,16 @@ thread_exit (void)
     if((celem && celem != list_tail(&current->children)) && current_pc){
       next_celem = list_next(celem);
       if (current_pc->alive_count <= 1){
-        //enum intr_level old_level = intr_disable();
         lock_acquire(&l);
-        //list_remove(celem);
+        list_remove(celem);
         lock_release(&l);
-        //intr_set_level(old_level);
         printf("thread %d freed pc: %x with child\n", thread_tid(), current_pc);
         free(current_pc);
       }
       else {
-        //enum intr_level old_level = intr_disable();
         lock_acquire(&l);
         current_pc->alive_count--;
         lock_release(&l);
-        //intr_set_level(old_level);
         printf("thread %d decrement pc: %x in struct with child\nnew value: %d\n", thread_tid(), current_pc, current_pc->alive_count);
       }
       celem = next_celem;
@@ -338,6 +333,11 @@ thread_exit (void)
   }while(celem != list_tail(&current->children));
 
   process_exit ();
+
+  if(current->parent) {
+    sema_up(&current->parent->s); //awaken waiting parent
+  }
+
   printf("%s: exit(%d)\n", thread_name(), thread_current()->pc->exit_status);
 #endif
 
