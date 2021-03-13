@@ -13,7 +13,7 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
-  if(!validate_esp(f->esp)) {
+  if(!validate_pointer(f->esp)) {
     exit(-1);
   }
   char *syscall_num = f->esp;
@@ -24,14 +24,14 @@ syscall_handler (struct intr_frame *f UNUSED)
   void ** desp;
   switch (*syscall_num) {
     case SYS_HALT:
-      printf("HALT!\n");
+      //printf("HALT!\n");
       halt();
       return;
 
     case SYS_CREATE:
-      printf("CREATE!\n");
+      //printf("CREATE!\n");
       desp = f->esp + 4;
-      unsigned *size = f->esp + 8;
+      size = f->esp + 8;
       if(validate_pointer(desp) && validate_pointer(size)) {
         if(validate_string(*desp)) {
           f->eax = create((char*)*desp, *size);
@@ -42,23 +42,25 @@ syscall_handler (struct intr_frame *f UNUSED)
       return;
 
     case SYS_OPEN:
-      printf("OPEN!\n");
+      //printf("OPEN!\n");
       desp = f->esp + 4;
       if(validate_pointer(desp)) {
-        f->eax = open(*desp);
-        return;
+        if(validate_pointer(*desp)) {
+          f->eax = open(*desp);
+          return;
+        }
       }
       exit(-1);
       return;
 
     case SYS_CLOSE:
-      printf("CLOSE!\n");
+      //printf("CLOSE!\n");
       fd = f->esp + 4;
       close(*fd);
       return;
 
     case SYS_READ:
-      printf("READ!\n");
+      //printf("READ!\n");
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
@@ -72,11 +74,11 @@ syscall_handler (struct intr_frame *f UNUSED)
       return;
 
     case SYS_WRITE:
-      printf("WRITE!\n");
+      //printf("WRITE!\n");
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
-      if(validate_pointer(buf) && validate_pointer(size) && validate_pointer(fd)) {
+      if(validate_pointer(buf) && validate_pointer(size)) {
         if(validate_buffer(*buf, *size)) {
           f->eax = write(*fd, *buf, *size);
           return;
@@ -86,7 +88,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       return;
 
     case SYS_EXEC:
-      printf("EXEC!\n");
+      //printf("EXEC!\n");
       desp = f->esp + 4;
       if(validate_pointer(desp)) {
         if(validate_string(*desp)) {
@@ -98,7 +100,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       return;
 
     case SYS_EXIT:
-      printf("EXIT!\n");
+      //printf("EXIT!\n");
       status = f->esp + 4;
       if(validate_pointer(status)) {
         exit(*status);
@@ -108,11 +110,13 @@ syscall_handler (struct intr_frame *f UNUSED)
       return;
 
     case SYS_WAIT:
-      printf("WAIT!\n");
+      //printf("WAIT!\n");
       desp = f->esp + 4;
       if(validate_pointer(desp)) {
-        wait((tid_t)*desp);
-        return;
+        if(validate_pointer(*desp)) {
+          f->eax = wait((tid_t)*desp);
+          return;
+        }
       }
       exit(-1);
       return;
@@ -229,25 +233,23 @@ bool validate_pointer(void *pntr) {
 }
 
 bool validate_string(char *string) {
+  if(!validate_pointer(string)) return false;
   int counter = 0;
   while(true) {
     if(!validate_pointer((void*)string[counter])) {
       return false;
     }
-    else if(string[counter] == '\0') return true;
+    else if(*(char*)string[counter] == '\0') return true;
     counter++;
   }
 }
 
 bool validate_buffer(void *buffer, int size) {
+  if(!validate_pointer(buffer)) return false;
   for (int i = (int)buffer; i < (int)buffer + size; i++) {
     if(!validate_pointer((void*)i)) {
       return false;
     }
   }
   return true;
-}
-
-bool validate_esp(void *esp) {
-  return (esp == PHYS_BASE);
 }

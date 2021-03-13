@@ -28,6 +28,6 @@ int wait(tid_t pid);
 bool validate_pointer(void *pntr);
 bool validate_string(char *string);
 bool validate_buffer(void *buffer, int size);
-bool validate_esp(void *esp);
+bool validate_esp(void **esp);
 
 #endif /* userprog/syscall.h */

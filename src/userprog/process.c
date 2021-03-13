@@ -59,7 +59,6 @@ process_execute (const char *cmd_line)
     tid = TID_ERROR;
   }
 
-  //free(ai->sem);
   palloc_free_page (ai->fname);
   palloc_free_page (ai->cmd_line);
   free(ai);
@@ -89,8 +88,9 @@ start_process (void *vai)
     pc->exit_status = -1;
     pc->child = thread_current();
     thread_current()->pc = pc;
+    //memcpy(thread_current()->parent, ai->parent, sizeof(struct thread*));
     thread_current()->parent = ai->parent;
-    printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
+    //printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
     list_push_back(&thread_current()->parent->children, &pc->elem);
     sema_up(&ai->sem);
   }
@@ -99,7 +99,7 @@ start_process (void *vai)
   /* If load failed, quit. */
   if (!success) {
     sema_up(&ai->sem);
-    printf("failed to load");
+    //printf("failed to load");
     thread_exit ();
   }
 
@@ -124,45 +124,62 @@ immediately, without waiting.
 This function will be implemented in problem 2-2.  For now, it
 does nothing. */
 int
-process_wait (tid_t child_tid)
+process_wait (tid_t child_tid UNUSED)
 {
   struct lock l;
   lock_init(&l);
+  bool foundChild = false;
   struct thread *current = thread_current();
   struct list_elem *celem = list_begin(&current->children);
   struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
+
   while(celem != list_tail(&current->children)) {
+    //printf("child_tid: %i\n", child_tid);
+    //printf("current_pc->child tid: %i\n", current_pc->child->tid);
     if(current_pc->child->tid == child_tid) {
+      foundChild = true;
       break;
     }
     else {
-      struct list_elem *celem = list_next(&celem);
-      struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
+      celem = list_next(celem);
+      current_pc = list_entry(celem, struct parent_child, elem);
     }
   }
+  if(!foundChild) {
+    //printf("current_pc->exit_status = %i\n", current_pc->exit_status);
+    return current_pc->exit_status;
+  }
   struct thread *child = current_pc->child;
-  if(child->parent->tid == thread_tid()) {
+  if(child->parent && child->parent->tid == current->tid) {
     lock_acquire(&l);
 
-    if(child->pc->alive_count == 1) {
+    if(current_pc->alive_count == 1) {
       lock_release(&l);
-      return child->pc->exit_status;
+      //printf("child has terminated\n");
+      return current_pc->exit_status;
     }
     else {
       lock_release(&l);
+      //printf("child still running\n");
       sema_down(&thread_current()->s);
-      return child->pc->exit_status;
+      return current_pc->exit_status;
     }
-    printf("out\n");
+    //}
+    //printf("out\n");
     return -1;
+    //while(true) {
+
   }
+  //return -1;
 }
+
 
 /* Free the current process's resources. */
 void
 process_exit (void)
 {
   struct thread *cur = thread_current ();
+  //printf("thread %i closing\n", thread_current()->tid);
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
@@ -308,6 +325,10 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
     {
       if(argc == 0) {
         file_name = token;
+        if(!file_name) {
+          exit(-1);
+          return false;
+        }
       }
       /*else {
       printf("writing from %x to %x as %i characters\n", new_esp, new_esp - (strlen(token) + 1), strlen(token));
@@ -390,7 +411,6 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
     i++;
   }
   #endif
-  //printf("finished stack print\n");
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL)
