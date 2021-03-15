@@ -33,8 +33,7 @@ process_execute (const char *cmd_line)
 {
   tid_t tid;
   struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
-  ai->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
-  sema_init(ai->sem, 0);
+  sema_init(&ai->sem, 0);
   ai->pc = (struct parent_child*)malloc(sizeof(struct parent_child));
   ai->pc->alive_count = 2;
   ai->pc->exit_status = -1;
@@ -56,7 +55,7 @@ process_execute (const char *cmd_line)
   ai->parent = thread_current();
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (ai->fname, PRI_DEFAULT, start_process, ai);
-  sema_down(ai->sem);
+  sema_down(&ai->sem);
 
   if(!ai->success) {
     tid = TID_ERROR;
@@ -67,7 +66,6 @@ process_execute (const char *cmd_line)
 
   palloc_free_page (ai->fname);
   palloc_free_page (ai->cmd_line);
-  free(ai->sem);
   free(ai);
   return tid;
 }
@@ -95,14 +93,14 @@ start_process (void *vai)
     current->pc = ai->pc;
     current->parent = ai->parent;
     //printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
-    sema_up(ai->sem);
+    sema_up(&ai->sem);
   }
 
 
   /* If load failed, quit. */
   if (!success) {
     //printf("failed to load");
-    sema_up(ai->sem);
+    sema_up(&ai->sem);
     thread_exit ();
   }
 
