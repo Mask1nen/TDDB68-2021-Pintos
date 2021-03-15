@@ -94,8 +94,6 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-
-
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -197,7 +195,6 @@ thread_create (const char *name, int priority,
 
     /* Add to run queue. */
     thread_unblock (t);
-    sema_init(&thread_current()->s, 0);
     return tid;
   }
 
@@ -288,9 +285,9 @@ thread_create (const char *name, int priority,
         close(i);
       }
     }
-    printf("%s: exit(%d)\n", thread_name(), current->pc->exit_status);
 
     if(current->pc) {
+      //printf("%s: exit(%d)\n", thread_name(), current->pc->exit_status);
       if(current->pc->alive_count <= 1 && current->pc->alive_count >= 0) {
         //printf("thread %d freed pc: %x with parent\n", thread_tid(), current->pc);
         lock_acquire(&l);
@@ -331,9 +328,7 @@ thread_create (const char *name, int priority,
       }
     }while(celem != list_tail(&current->children));
 
-
     process_exit ();
-
     if(current->parent) {
       sema_up(&current->parent->s); //awaken waiting parent
     }
@@ -500,6 +495,7 @@ thread_create (const char *name, int priority,
     list_init(&t->children);
     t->fd[0] = STDIN_FILENO;
     t->fd[1] = STDOUT_FILENO;
+    sema_init(&t->s, 0);
     #endif
   }
 

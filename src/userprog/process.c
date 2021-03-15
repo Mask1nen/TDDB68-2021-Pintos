@@ -33,14 +33,17 @@ process_execute (const char *cmd_line)
 {
   tid_t tid;
   struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
-  sema_init(&ai->sem, 0);
+  ai->sem = (struct semaphore*)malloc(sizeof(struct semaphore));
+  sema_init(ai->sem, 0);
+  ai->pc = (struct parent_child*)malloc(sizeof(struct parent_child));
+  ai->pc->alive_count = 2;
+  ai->pc->exit_status = -1;
 
   /* Make a copy of FILE_NAME.
   Otherwise there's a race between the caller and load(). */
 
   ai->cmd_line = palloc_get_page (0);
-  if (cmd_line == NULL)
-  return TID_ERROR;
+  if (cmd_line == NULL) return TID_ERROR;
   strlcpy (ai->cmd_line, cmd_line, PGSIZE);
 
   char *save_ptr;
@@ -53,14 +56,18 @@ process_execute (const char *cmd_line)
   ai->parent = thread_current();
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (ai->fname, PRI_DEFAULT, start_process, ai);
-  sema_down(&ai->sem);
+  sema_down(ai->sem);
 
   if(!ai->success) {
     tid = TID_ERROR;
   }
+  else {
+    list_push_back(&thread_current()->children, &ai->pc->elem);
+  }
 
   palloc_free_page (ai->fname);
   palloc_free_page (ai->cmd_line);
+  free(ai->sem);
   free(ai);
   return tid;
 }
@@ -71,6 +78,7 @@ static void
 start_process (void *vai)
 {
   struct arg_info *ai = (struct arg_info*) vai;
+  struct thread *current = thread_current();
   //const char *file_name = ai->fname;
   struct intr_frame if_;
   bool success;
@@ -83,23 +91,18 @@ start_process (void *vai)
   success = load (ai->cmd_line, &if_.eip, &if_.esp);
   ai->success = success;
   if (success) {
-    struct parent_child *pc = (struct parent_child*)malloc(sizeof(struct parent_child));
-    pc->alive_count = 2;
-    pc->exit_status = -1;
-    pc->child = thread_current();
-    thread_current()->pc = pc;
-    //memcpy(thread_current()->parent, ai->parent, sizeof(struct thread*));
-    thread_current()->parent = ai->parent;
+    ai->pc->child = current;
+    current->pc = ai->pc;
+    current->parent = ai->parent;
     //printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
-    list_push_back(&thread_current()->parent->children, &pc->elem);
-    sema_up(&ai->sem);
+    sema_up(ai->sem);
   }
 
 
   /* If load failed, quit. */
   if (!success) {
-    sema_up(&ai->sem);
     //printf("failed to load");
+    sema_up(ai->sem);
     thread_exit ();
   }
 
@@ -147,7 +150,7 @@ process_wait (tid_t child_tid UNUSED)
   }
   if(!foundChild) {
     //printf("current_pc->exit_status = %i\n", current_pc->exit_status);
-    return current_pc->exit_status;
+    return -1;
   }
   struct thread *child = current_pc->child;
   if(child->parent && child->parent->tid == current->tid) {
@@ -161,16 +164,11 @@ process_wait (tid_t child_tid UNUSED)
     else {
       lock_release(&l);
       //printf("child still running\n");
-      sema_down(&thread_current()->s);
+      sema_down(&current->s);
       return current_pc->exit_status;
     }
-    //}
-    //printf("out\n");
-    return -1;
-    //while(true) {
-
   }
-  //return -1;
+  return -1;
 }
 
 
@@ -197,7 +195,6 @@ process_exit (void)
     cur->pagedir = NULL;
     pagedir_activate (NULL);
     pagedir_destroy (pd);
-    cur->pc->exit_status = 0;
   }
 }
 

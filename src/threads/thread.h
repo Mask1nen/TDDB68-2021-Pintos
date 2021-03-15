@@ -96,9 +96,10 @@ struct parent_child {
 };
 
 struct arg_info{
-  struct semaphore sem;
+  struct semaphore *sem;
   bool success;
   struct thread *parent;
+  struct parent_child *pc;
   char* cmd_line;
   char* fname;
 };

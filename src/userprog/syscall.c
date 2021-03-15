@@ -121,7 +121,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       exit(-1);
       return;
   }
-  thread_exit();
+  //thread_exit();
 }
 
 void
@@ -172,8 +172,9 @@ close(int fd){
 int
 read(int fd, void * buf, unsigned size){
   struct thread *currentThread = thread_current();
+  if((fd == NULL && fd != 0) || fd == 1 || fd < 0 || fd > 129) return -1;
   struct file *f = currentThread->fd[fd];
-  if((f == NULL && fd != 0) || fd == 1) return -1;
+  if (f == NULL) return -1;
   if(fd == 0){
     uint8_t c[size];
     for (size_t i = 0; i < size; i++) {
@@ -190,11 +191,11 @@ read(int fd, void * buf, unsigned size){
 int
 write(int fd, const void * buf, unsigned size){
   struct thread *currentThread = thread_current();
-  struct file *f = currentThread->fd[fd];
   const char* charbuf = buf;
-  if((f == NULL && fd != 1) || fd == 0){
-    return -1;
-  }
+  if((fd == NULL && fd != 1) || fd == 0 || fd < 0 || fd > 129) return -1;
+  struct file *f = currentThread->fd[fd];
+  if (f == NULL) return -1;
+
   if(fd == 1){
     putbuf(charbuf, (size_t) size);
     return size;
@@ -205,6 +206,7 @@ write(int fd, const void * buf, unsigned size){
 void
 exit(int status){
   thread_current()->pc->exit_status = status;
+  printf("%s: exit(%d)\n", thread_name(), thread_current()->pc->exit_status);
   thread_exit();
 }
 
@@ -236,12 +238,13 @@ bool validate_string(char *string) {
   if(!validate_pointer(string)) return false;
   int counter = 0;
   while(true) {
-    if(!validate_pointer((void*)string[counter])) {
+    if(!validate_pointer((void*)(string + counter))) {
       return false;
     }
-    else if(*(char*)string[counter] == '\0') return true;
+    else if(*(char*)(string + counter) == '\0') return true;
     counter++;
   }
+  return false;
 }
 
 bool validate_buffer(void *buffer, int size) {
