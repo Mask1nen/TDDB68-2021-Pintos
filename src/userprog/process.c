@@ -46,7 +46,11 @@ process_execute (const char *cmd_line)
   strlcpy (ai->cmd_line, cmd_line, PGSIZE);
 
   char *save_ptr;
-  char *file_name = strtok_r (cmd_line, " ", &save_ptr);
+  char* temp_cmdline;
+  temp_cmdline = palloc_get_page (0);
+  if (cmd_line == NULL) return TID_ERROR;
+  strlcpy (temp_cmdline, cmd_line, PGSIZE);
+  char *file_name = strtok_r (temp_cmdline, " ", &save_ptr);
 
   ai->fname = palloc_get_page (0);
   if (ai->fname == NULL)
@@ -66,6 +70,7 @@ process_execute (const char *cmd_line)
 
   palloc_free_page (ai->fname);
   palloc_free_page (ai->cmd_line);
+  palloc_free_page (temp_cmdline);
   free(ai);
   return tid;
 }
@@ -89,8 +94,9 @@ start_process (void *vai)
   success = load (ai->cmd_line, &if_.eip, &if_.esp);
   ai->success = success;
   if (success) {
-    ai->pc->child = current;
+    ai->pc->child_tid = current->tid;
     current->pc = ai->pc;
+    current->pc->counter = 0;
     current->parent = ai->parent;
     //printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
     sema_up(&ai->sem);
@@ -137,7 +143,9 @@ process_wait (tid_t child_tid UNUSED)
   while(celem != list_tail(&current->children)) {
     //printf("child_tid: %i\n", child_tid);
     //printf("current_pc->child tid: %i\n", current_pc->child->tid);
-    if(current_pc->child->tid == child_tid) {
+    if(current_pc->child_tid == child_tid) {
+      if(current_pc->counter > 0) return -1;
+      current_pc->counter++;
       foundChild = true;
       break;
     }
@@ -146,12 +154,12 @@ process_wait (tid_t child_tid UNUSED)
       current_pc = list_entry(celem, struct parent_child, elem);
     }
   }
+
   if(!foundChild) {
-    //printf("current_pc->exit_status = %i\n", current_pc->exit_status);
     return -1;
   }
-  struct thread *child = current_pc->child;
-  if(child->parent && child->parent->tid == current->tid) {
+
+  else {
     lock_acquire(&l);
 
     if(current_pc->alive_count == 1) {

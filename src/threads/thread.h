@@ -91,7 +91,8 @@ FIXA LAB3:
 struct parent_child {
      int exit_status;
      int alive_count;
-     struct thread *child;
+     tid_t child_tid;
+     int counter;
      struct list_elem elem;
 };
 
@@ -123,6 +124,8 @@ struct thread
     struct file *fd[130];
     struct parent_child *pc;
     struct semaphore s;
+    //int exit_status;
+    bool waited;
     struct list children;
     struct thread *parent;
 

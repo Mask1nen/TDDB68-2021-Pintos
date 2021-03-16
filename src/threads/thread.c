@@ -286,27 +286,11 @@ thread_create (const char *name, int priority,
       }
     }
 
-    if(current->pc) {
-      //printf("%s: exit(%d)\n", thread_name(), current->pc->exit_status);
-      if(current->pc->alive_count <= 1 && current->pc->alive_count >= 0) {
-        //printf("thread %d freed pc: %x with parent\n", thread_tid(), current->pc);
-        lock_acquire(&l);
-        free(current->pc);
-        lock_release(&l);
-      }
-      else {
-        lock_acquire(&l);
-        current->pc->alive_count--;
-        lock_release(&l);
-        //printf("thread %d decrement pc: %x in struct with parent\nnew value: %d\n", thread_tid(), current->pc, current->pc->alive_count);
-      }
-    }
-
     struct list_elem *celem = list_begin(&current->children);
     struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
     struct list_elem *next_celem;
     do{
-      if((celem && celem != list_tail(&current->children)) && current_pc){
+      if((current_pc && celem && celem != list_tail(&current->children))){
         next_celem = list_next(celem);
         if (current_pc->alive_count <= 1){
           lock_acquire(&l);
@@ -328,10 +312,21 @@ thread_create (const char *name, int priority,
       }
     }while(celem != list_tail(&current->children));
 
-    process_exit ();
-    if(current->parent) {
-      sema_up(&current->parent->s); //awaken waiting parent
+    if(current->pc) {
+      if(current->pc->alive_count <= 1 && current->pc->alive_count >= 0) {
+        lock_acquire(&l);
+        free(current->pc);
+        lock_release(&l);
+      }
+      else {
+        lock_acquire(&l);
+        current->pc->alive_count--;
+        lock_release(&l);
+        sema_up(&current->parent->s);
+      }
     }
+
+    process_exit ();
 
     #endif
 
@@ -492,9 +487,9 @@ thread_create (const char *name, int priority,
     t->priority = priority;
     t->magic = THREAD_MAGIC;
     #ifdef USERPROG
-    list_init(&t->children);
     t->fd[0] = STDIN_FILENO;
     t->fd[1] = STDOUT_FILENO;
+    list_init(&t->children);
     sema_init(&t->s, 0);
     #endif
   }

@@ -113,10 +113,10 @@ syscall_handler (struct intr_frame *f UNUSED)
       //printf("WAIT!\n");
       desp = f->esp + 4;
       if(validate_pointer(desp)) {
-        if(validate_pointer(*desp)) {
+        //if(validate_pointer(*desp)) {
           f->eax = wait((tid_t)*desp);
           return;
-        }
+        //}
       }
       exit(-1);
       return;
@@ -135,7 +135,7 @@ create(const char* fname, unsigned size){
 }
 
 int
-open(void * esp) {
+open(void *esp) {
   struct thread *currentThread = thread_current();
   int fd = -1;
   for (size_t i = 2; i < 130; i++) {
