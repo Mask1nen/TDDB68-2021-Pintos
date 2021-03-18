@@ -94,6 +94,7 @@ struct parent_child {
      tid_t child_tid;
      int wait_counter;
      struct list_elem elem;
+     struct lock l;
 };
 
 struct arg_info{
@@ -124,8 +125,6 @@ struct thread
     struct file *fd[130];
     struct parent_child *pc;
     struct semaphore s;
-    struct lock l;
-    //int exit_status;
     bool waited;
     struct list children;
     struct thread *parent;

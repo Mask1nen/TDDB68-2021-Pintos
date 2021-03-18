@@ -35,6 +35,7 @@ process_execute (const char *cmd_line)
   struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
   sema_init(&ai->sem, 0);
   ai->pc = (struct parent_child*)malloc(sizeof(struct parent_child));
+  lock_init(&ai->pc->l);
   ai->pc->alive_count = 2;
   ai->pc->exit_status = -1;
 
@@ -143,11 +144,17 @@ process_wait (tid_t child_tid UNUSED)
     //printf("child_tid: %i\n", child_tid);
     //printf("current_pc->child tid: %i\n", current_pc->child->tid);
     if(current_pc->child_tid == child_tid) {
-      lock_acquire(&l);
-      if(current_pc->wait_counter > 0) return -1;
-      current_pc->wait_counter++;
-      lock_release(&l);
-      foundChild = true;
+      lock_acquire(&current_pc->l);
+      if(current_pc->wait_counter > 0) {
+        lock_release(&current_pc->l);
+        return -1;
+      }
+      
+      else {
+        current_pc->wait_counter++;
+        lock_release(&current_pc->l);
+        foundChild = true;
+      }
       break;
     }
     else {
@@ -161,15 +168,15 @@ process_wait (tid_t child_tid UNUSED)
   }
 
   else {
-    lock_acquire(&l);
+    lock_acquire(&current_pc->l);
 
     if(current_pc->alive_count == 1) {
-      lock_release(&l);
+      lock_release(&current_pc->l);
       //printf("child has terminated\n");
       return current_pc->exit_status;
     }
     else {
-      lock_release(&l);
+      lock_release(&current_pc->l);
       //printf("child still running\n");
       sema_down(&current->s);
       return current_pc->exit_status;

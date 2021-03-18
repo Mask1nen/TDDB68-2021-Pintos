@@ -94,7 +94,6 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-  lock_init(&l);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -288,20 +287,20 @@ thread_create (const char *name, int priority,
     struct list_elem *celem = list_begin(&current->children);
     struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
     struct list_elem *next_celem;
-    if (celem != list_tail) {
+    if (celem != list_tail(&current->children)) {
       do{
         if((current_pc && celem && celem != list_tail(&current->children))){
           next_celem = list_next(celem);
-          lock_acquire(&l);
+          lock_acquire(&current_pc->l);
           if (current_pc->alive_count <= 1){
-            lock_release(&l);
+            lock_release(&current_pc->l);
             list_remove(celem);
             //printf("thread %d freed pc: %x with child\n", thread_tid(), current_pc);
             free(current_pc);
           }
           else {
             current_pc->alive_count--;
-            lock_release(&l);
+            lock_release(&current_pc->l);
             //printf("thread %d decrement pc: %x in struct with child\nnew value: %d\n", thread_tid(), current_pc, current_pc->alive_count);
           }
           celem = next_celem;
@@ -312,15 +311,14 @@ thread_create (const char *name, int priority,
       }while(celem != list_tail(&current->children));
     }
     if(current->pc) {
+      lock_acquire(&current->pc->l);
       if(current->pc->alive_count <= 1 && current->pc->alive_count >= 0) {
-        lock_acquire(&l);
+        lock_release(&current->pc->l);
         free(current->pc);
-        lock_release(&l);
       }
       else {
-        lock_acquire(&l);
         current->pc->alive_count--;
-        lock_release(&l);
+        lock_release(&current->pc->l);
         sema_up(&current->parent->s);
       }
     }
