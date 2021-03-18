@@ -59,7 +59,8 @@ process_execute (const char *cmd_line)
   ai->parent = thread_current();
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (ai->fname, PRI_DEFAULT, start_process, ai);
-  sema_down(&ai->sem);
+
+  if(tid) sema_down(&ai->sem);
 
   if(!ai->success) {
     tid = TID_ERROR;
@@ -96,7 +97,7 @@ start_process (void *vai)
   if (success) {
     ai->pc->child_tid = current->tid;
     current->pc = ai->pc;
-    current->pc->counter = 0;
+    current->pc->wait_counter = 0;
     current->parent = ai->parent;
     //printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
     sema_up(&ai->sem);
@@ -133,8 +134,6 @@ does nothing. */
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  struct lock l;
-  lock_init(&l);
   bool foundChild = false;
   struct thread *current = thread_current();
   struct list_elem *celem = list_begin(&current->children);
@@ -144,8 +143,10 @@ process_wait (tid_t child_tid UNUSED)
     //printf("child_tid: %i\n", child_tid);
     //printf("current_pc->child tid: %i\n", current_pc->child->tid);
     if(current_pc->child_tid == child_tid) {
-      if(current_pc->counter > 0) return -1;
-      current_pc->counter++;
+      lock_acquire(&l);
+      if(current_pc->wait_counter > 0) return -1;
+      current_pc->wait_counter++;
+      lock_release(&l);
       foundChild = true;
       break;
     }

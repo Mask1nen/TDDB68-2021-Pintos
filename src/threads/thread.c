@@ -94,6 +94,7 @@ thread_init (void)
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+  lock_init(&l);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -184,7 +185,6 @@ thread_create (const char *name, int priority,
     kf->eip = NULL;
     kf->function = function;
     kf->aux = aux;
-    //printf("stackframe made \n");
     /* Stack frame for switch_entry(). */
     ef = alloc_frame (t, sizeof *ef);
     ef->eip = (void (*) (void)) kernel_thread;
@@ -278,8 +278,7 @@ thread_create (const char *name, int priority,
 
     #ifdef USERPROG
     struct thread *current = thread_current();
-    struct lock l;
-    lock_init(&l);
+
     for (size_t i = 2; i < 130; i++) {
       if(current->fd[i]){
         close(i);
@@ -289,29 +288,29 @@ thread_create (const char *name, int priority,
     struct list_elem *celem = list_begin(&current->children);
     struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
     struct list_elem *next_celem;
-    do{
-      if((current_pc && celem && celem != list_tail(&current->children))){
-        next_celem = list_next(celem);
-        if (current_pc->alive_count <= 1){
+    if (celem != list_tail) {
+      do{
+        if((current_pc && celem && celem != list_tail(&current->children))){
+          next_celem = list_next(celem);
           lock_acquire(&l);
-          list_remove(celem);
-          lock_release(&l);
-          //printf("thread %d freed pc: %x with child\n", thread_tid(), current_pc);
-          free(current_pc);
+          if (current_pc->alive_count <= 1){
+            lock_release(&l);
+            list_remove(celem);
+            //printf("thread %d freed pc: %x with child\n", thread_tid(), current_pc);
+            free(current_pc);
+          }
+          else {
+            current_pc->alive_count--;
+            lock_release(&l);
+            //printf("thread %d decrement pc: %x in struct with child\nnew value: %d\n", thread_tid(), current_pc, current_pc->alive_count);
+          }
+          celem = next_celem;
+          if(celem) {
+            current_pc = list_entry(celem, struct parent_child, elem);
+          }
         }
-        else {
-          lock_acquire(&l);
-          current_pc->alive_count--;
-          lock_release(&l);
-          //printf("thread %d decrement pc: %x in struct with child\nnew value: %d\n", thread_tid(), current_pc, current_pc->alive_count);
-        }
-        celem = next_celem;
-        if(celem) {
-          current_pc = list_entry(celem, struct parent_child, elem);
-        }
-      }
-    }while(celem != list_tail(&current->children));
-
+      }while(celem != list_tail(&current->children));
+    }
     if(current->pc) {
       if(current->pc->alive_count <= 1 && current->pc->alive_count >= 0) {
         lock_acquire(&l);

@@ -92,7 +92,7 @@ struct parent_child {
      int exit_status;
      int alive_count;
      tid_t child_tid;
-     int counter;
+     int wait_counter;
      struct list_elem elem;
 };
 
@@ -124,6 +124,7 @@ struct thread
     struct file *fd[130];
     struct parent_child *pc;
     struct semaphore s;
+    struct lock l;
     //int exit_status;
     bool waited;
     struct list children;
