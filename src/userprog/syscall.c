@@ -20,6 +20,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   int *fd;
   int *status;
   unsigned *size;
+  unsigned *position;
   void ** buf;
   void ** desp;
   switch (*syscall_num) {
@@ -64,7 +65,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
-      if(validate_pointer(buf) && validate_pointer(size)) {
+      if(validate_pointer(buf) && validate_pointer(size) && validate_pointer(fd)) {
         if(validate_buffer(*buf, *size)) {
           f->eax = read(*fd, *buf, *size);
           return;
@@ -78,7 +79,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       fd = f->esp + 4;
       buf = f->esp + 8;
       size = f->esp + 12;
-      if(validate_pointer(buf) && validate_pointer(size)) {
+      if(validate_pointer(buf) && validate_pointer(size) && validate_pointer(fd)) {
         if(validate_buffer(*buf, *size)) {
           f->eax = write(*fd, *buf, *size);
           return;
@@ -120,6 +121,45 @@ syscall_handler (struct intr_frame *f UNUSED)
       }
       exit(-1);
       return;
+
+    case SYS_SEEK:
+      fd = f->esp + 4;
+      position = f->esp + 8;
+      if(validate_pointer(fd) && validate_pointer(position)) {
+        seek(*fd, *position);
+        return;
+      }
+      exit(-1);
+      return;
+
+    case SYS_TELL:
+    fd = f->esp + 4;
+    if(validate_pointer(fd)) {
+      f->eax = tell(*fd);
+      return;
+    }
+    exit(-1);
+    return;
+
+    case SYS_FILESIZE:
+    fd = f->esp + 4;
+    if(validate_pointer(fd)) {
+      f->eax = filesize(*fd);
+      return;
+    }
+    exit(-1);
+    return;
+
+    case SYS_REMOVE:
+    desp = f->esp + 4;
+    if(validate_pointer(desp)) {
+      if(validate_string(*desp)) {
+        f->eax = remove(*desp);
+        return;
+      }
+    }
+    exit(-1);
+    return;
   }
   //thread_exit();
 }
@@ -146,7 +186,7 @@ open(void *esp) {
   }
   if(fd != -1){
     struct file *file = filesys_open((char*)esp);
-    if(file!=NULL){
+    if(file){
       currentThread->fd[fd]=file;
     }else{
       fd = -1;
@@ -172,9 +212,9 @@ close(int fd){
 int
 read(int fd, void * buf, unsigned size){
   struct thread *currentThread = thread_current();
-  if((fd == NULL && fd != 0) || fd == 1 || fd < 0 || fd > 129) return -1;
+  if(!fd || fd == 1 || fd < 0 || fd > 129) return -1;
   struct file *f = currentThread->fd[fd];
-  if (f == NULL) return -1;
+  if (!f) return -2;
   if(fd == 0){
     uint8_t c[size];
     for (size_t i = 0; i < size; i++) {
@@ -192,9 +232,9 @@ int
 write(int fd, const void * buf, unsigned size){
   struct thread *currentThread = thread_current();
   const char* charbuf = buf;
-  if((fd == NULL && fd != 1) || fd == 0 || fd < 0 || fd > 129) return -1;
+  if(!fd || fd == 0 || fd < 0 || fd > 129) return -3;
   struct file *f = currentThread->fd[fd];
-  if (f == NULL) return -1;
+  if (!f) return -4;
 
   if(fd == 1){
     putbuf(charbuf, (size_t) size);
@@ -219,6 +259,25 @@ exec(const char* cmdline){
 int
 wait(tid_t pid){
   return process_wait(pid);
+}
+
+void seek(int fd, unsigned position) {
+  struct file *file = thread_current()->fd[fd];
+  file_seek(file, position);
+}
+
+unsigned tell(int fd) {
+  struct file *file = thread_current()->fd[fd];
+  return file_tell(file);
+}
+
+int filesize (int fd) {
+  struct file *file = thread_current()->fd[fd];
+  return file_length(file);
+}
+
+bool remove (const char *file_name) {
+  return filesys_remove(file_name);
 }
 
 bool validate_pointer(void *pntr) {

@@ -277,7 +277,6 @@ thread_create (const char *name, int priority,
 
     #ifdef USERPROG
     struct thread *current = thread_current();
-
     for (size_t i = 2; i < 130; i++) {
       if(current->fd[i]){
         close(i);

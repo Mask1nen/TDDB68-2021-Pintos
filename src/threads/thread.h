@@ -125,7 +125,6 @@ struct thread
     struct file *fd[130];
     struct parent_child *pc;
     struct semaphore s;
-    bool waited;
     struct list children;
     struct thread *parent;
 

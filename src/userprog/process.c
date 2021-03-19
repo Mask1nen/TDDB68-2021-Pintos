@@ -34,10 +34,6 @@ process_execute (const char *cmd_line)
   tid_t tid;
   struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
   sema_init(&ai->sem, 0);
-  ai->pc = (struct parent_child*)malloc(sizeof(struct parent_child));
-  lock_init(&ai->pc->l);
-  ai->pc->alive_count = 2;
-  ai->pc->exit_status = -1;
 
   /* Make a copy of FILE_NAME.
   Otherwise there's a race between the caller and load(). */
@@ -84,7 +80,6 @@ start_process (void *vai)
 {
   struct arg_info *ai = (struct arg_info*) vai;
   struct thread *current = thread_current();
-  //const char *file_name = ai->fname;
   struct intr_frame if_;
   bool success;
 
@@ -96,18 +91,20 @@ start_process (void *vai)
   success = load (ai->cmd_line, &if_.eip, &if_.esp);
   ai->success = success;
   if (success) {
+    ai->pc = (struct parent_child*)malloc(sizeof(struct parent_child));
+    lock_init(&ai->pc->l);
+    ai->pc->alive_count = 2;
+    ai->pc->exit_status = -1;
     ai->pc->child_tid = current->tid;
     current->pc = ai->pc;
     current->pc->wait_counter = 0;
     current->parent = ai->parent;
-    //printf("thread %d creating pc struct %x with parent %d\n", thread_tid(), pc, thread_current()->parent->tid);
     sema_up(&ai->sem);
   }
 
 
   /* If load failed, quit. */
   if (!success) {
-    //printf("failed to load");
     sema_up(&ai->sem);
     thread_exit ();
   }
@@ -141,15 +138,13 @@ process_wait (tid_t child_tid UNUSED)
   struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
 
   while(celem != list_tail(&current->children)) {
-    //printf("child_tid: %i\n", child_tid);
-    //printf("current_pc->child tid: %i\n", current_pc->child->tid);
     if(current_pc->child_tid == child_tid) {
       lock_acquire(&current_pc->l);
       if(current_pc->wait_counter > 0) {
         lock_release(&current_pc->l);
         return -1;
       }
-      
+
       else {
         current_pc->wait_counter++;
         lock_release(&current_pc->l);
@@ -172,12 +167,11 @@ process_wait (tid_t child_tid UNUSED)
 
     if(current_pc->alive_count == 1) {
       lock_release(&current_pc->l);
-      //printf("child has terminated\n");
       return current_pc->exit_status;
+      //return -10;
     }
     else {
       lock_release(&current_pc->l);
-      //printf("child still running\n");
       sema_down(&current->s);
       return current_pc->exit_status;
     }
