@@ -27,7 +27,6 @@ test_main (void)
   close (fd);
   exec_children ("child-syn-read", children, CHILD_CNT);
   for(int i = 0; i < CHILD_CNT; i++) {
-    printf("child pid in syn-read = %i\n", children[i]);
   }
   wait_children (children, CHILD_CNT);
 }

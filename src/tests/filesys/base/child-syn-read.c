@@ -26,7 +26,6 @@ main (int argc, const char *argv[])
 
   CHECK (argc == 2, "argc must be 2, actually %d", argc);
   child_idx = atoi (argv[1]);
-  printf("child is running as: %i\n", child_idx);
 
   random_init (0);
   random_bytes (buf, sizeof buf);
@@ -39,6 +38,5 @@ main (int argc, const char *argv[])
       compare_bytes (&c, buf + i, 1, i, file_name);
     }
   close (fd);
-  printf("reached end of child program: %i\n", child_idx);
   return child_idx;
 }

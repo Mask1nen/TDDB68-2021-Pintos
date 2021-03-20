@@ -277,7 +277,6 @@ thread_create (const char *name, int priority,
 
     #ifdef USERPROG
     struct thread *current = thread_current();
-    printf("thread %i is exiting\n", current->tid);
     for (size_t i = 2; i < 130; i++) {
       if(current->fd[i]){
         close(i);
@@ -315,11 +314,11 @@ thread_create (const char *name, int priority,
       lock_acquire(&current->pc->l);
       current->pc->alive_count--;
       if(current->pc->alive_count == 0) {
+        printf("freeing pc %x\n", current->pc);
         to_free = true;
       }
-      else if(current->pc->alive_count > 0) {
-        printf("waking up thread %i\n", current->parent->tid);
-        sema_up(&current->parent->wait_sema);
+      else {
+        sema_up(&current->pc->wait_sema);
       }
       lock_release(&current->pc->l);
       if(to_free) {
@@ -491,7 +490,6 @@ thread_create (const char *name, int priority,
     t->fd[0] = STDIN_FILENO;
     t->fd[1] = STDOUT_FILENO;
     list_init(&t->children);
-    sema_init(&t->wait_sema, 0);
     #endif
   }
 

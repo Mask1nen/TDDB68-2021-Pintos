@@ -99,6 +99,7 @@ start_process (void *vai)
     current->pc = ai->pc;
     current->pc->wait_counter = 0;
     current->parent = ai->parent;
+    sema_init(&current->pc->wait_sema, 0);
     sema_up(&ai->sem);
   }
 
@@ -165,15 +166,14 @@ process_wait (tid_t child_tid UNUSED)
     lock_acquire(&child_pc->l);
 
     if(child_pc->alive_count <= 1) {
-      printf("child is dead\n");
+      lock_release(&child_pc->l);
       exit_status = child_pc->exit_status;
     }
     else {
-      printf("sleeping thread %i\n", current->tid);
-      sema_down(&current->wait_sema);
+      lock_release(&child_pc->l);
+      sema_down(&child_pc->wait_sema);
       exit_status = child_pc->exit_status;
     }
-    lock_release(&child_pc->l);
   }
   return exit_status;
 }

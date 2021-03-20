@@ -95,6 +95,7 @@ struct parent_child {
      int wait_counter;
      struct list_elem elem;
      struct lock l;
+     struct semaphore wait_sema;
 };
 
 struct arg_info{
@@ -124,7 +125,6 @@ struct thread
     uint32_t *pagedir;                  /* Page directory. */
     struct file *fd[130];
     struct parent_child *pc;
-    struct semaphore wait_sema;
     struct list children;
     struct thread *parent;
 
