@@ -133,50 +133,49 @@ int
 process_wait (tid_t child_tid UNUSED)
 {
   bool foundChild = false;
+  int exit_status;
   struct thread *current = thread_current();
   struct list_elem *celem = list_begin(&current->children);
-  struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
+  struct parent_child *child_pc = list_entry(celem, struct parent_child, elem);
 
   while(celem != list_tail(&current->children)) {
-    if(current_pc->child_tid == child_tid) {
-      lock_acquire(&current_pc->l);
-      if(current_pc->wait_counter > 0) {
-        lock_release(&current_pc->l);
-        return -1;
+    if(child_pc->child_tid == child_tid) {
+      lock_acquire(&child_pc->l);
+      if(child_pc->wait_counter > 0) {
+        exit_status = -1;
       }
-
       else {
-        current_pc->wait_counter++;
-        lock_release(&current_pc->l);
+        child_pc->wait_counter++;
         foundChild = true;
       }
+      lock_release(&child_pc->l);
       break;
     }
     else {
       celem = list_next(celem);
-      current_pc = list_entry(celem, struct parent_child, elem);
+      child_pc = list_entry(celem, struct parent_child, elem);
     }
   }
 
   if(!foundChild) {
-    return -1;
+    exit_status = -1;
   }
 
   else {
-    lock_acquire(&current_pc->l);
+    lock_acquire(&child_pc->l);
 
-    if(current_pc->alive_count == 1) {
-      lock_release(&current_pc->l);
-      return current_pc->exit_status;
-      //return -10;
+    if(child_pc->alive_count <= 1) {
+      printf("child is dead\n");
+      exit_status = child_pc->exit_status;
     }
     else {
-      lock_release(&current_pc->l);
-      sema_down(&current->s);
-      return current_pc->exit_status;
+      printf("sleeping thread %i\n", current->tid);
+      sema_down(&current->wait_sema);
+      exit_status = child_pc->exit_status;
     }
+    lock_release(&child_pc->l);
   }
-  return -1;
+  return exit_status;
 }
 
 
@@ -185,7 +184,6 @@ void
 process_exit (void)
 {
   struct thread *cur = thread_current ();
-  //printf("thread %i closing\n", thread_current()->tid);
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
@@ -335,14 +333,6 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
           return false;
         }
       }
-      /*else {
-      printf("writing from %x to %x as %i characters\n", new_esp, new_esp - (strlen(token) + 1), strlen(token));
-      int n = strlen(token) + 1;
-      new_esp -= strlen(token) + 1;
-      memcpy(new_esp, token, n);
-      argv[argc] = new_esp;
-    } */
-    //printf("writing from %x to %x as %i characters\n", new_esp, new_esp - (strlen(token) + 1), strlen(token));
     int n = strlen(token) + 1;
     new_esp -= strlen(token) + 1;
     memcpy(new_esp, token, n);

@@ -24,6 +24,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   void ** buf;
   void ** desp;
   switch (*syscall_num) {
+
     case SYS_HALT:
       //printf("HALT!\n");
       halt();
@@ -114,10 +115,8 @@ syscall_handler (struct intr_frame *f UNUSED)
       //printf("WAIT!\n");
       desp = f->esp + 4;
       if(validate_pointer(desp)) {
-        //if(validate_pointer(*desp)) {
-          f->eax = wait((tid_t)*desp);
-          return;
-        //}
+        f->eax = wait((tid_t)*desp);
+        return;
       }
       exit(-1);
       return;
@@ -133,35 +132,34 @@ syscall_handler (struct intr_frame *f UNUSED)
       return;
 
     case SYS_TELL:
-    fd = f->esp + 4;
-    if(validate_pointer(fd)) {
-      f->eax = tell(*fd);
-      return;
-    }
-    exit(-1);
-    return;
-
-    case SYS_FILESIZE:
-    fd = f->esp + 4;
-    if(validate_pointer(fd)) {
-      f->eax = filesize(*fd);
-      return;
-    }
-    exit(-1);
-    return;
-
-    case SYS_REMOVE:
-    desp = f->esp + 4;
-    if(validate_pointer(desp)) {
-      if(validate_string(*desp)) {
-        f->eax = remove(*desp);
+      fd = f->esp + 4;
+      if(validate_pointer(fd)) {
+        f->eax = tell(*fd);
         return;
       }
-    }
-    exit(-1);
-    return;
+      exit(-1);
+      return;
+
+    case SYS_FILESIZE:
+      fd = f->esp + 4;
+      if(validate_pointer(fd)) {
+        f->eax = filesize(*fd);
+        return;
+      }
+      exit(-1);
+      return;
+
+    case SYS_REMOVE:
+      desp = f->esp + 4;
+      if(validate_pointer(desp)) {
+        if(validate_string(*desp)) {
+          f->eax = remove(*desp);
+          return;
+        }
+      }
+      exit(-1);
+      return;
   }
-  //thread_exit();
 }
 
 void
@@ -214,7 +212,7 @@ read(int fd, void * buf, unsigned size){
   struct thread *currentThread = thread_current();
   if(!fd || fd == 1 || fd < 0 || fd > 129) return -1;
   struct file *f = currentThread->fd[fd];
-  if (!f) return -2;
+  if (!f) return -1;
   if(fd == 0){
     uint8_t c[size];
     for (size_t i = 0; i < size; i++) {
@@ -232,9 +230,9 @@ int
 write(int fd, const void * buf, unsigned size){
   struct thread *currentThread = thread_current();
   const char* charbuf = buf;
-  if(!fd || fd == 0 || fd < 0 || fd > 129) return -3;
+  if(!fd || fd == 0 || fd < 0 || fd > 129) return -1;
   struct file *f = currentThread->fd[fd];
-  if (!f) return -4;
+  if (!f) return -1;
 
   if(fd == 1){
     putbuf(charbuf, (size_t) size);

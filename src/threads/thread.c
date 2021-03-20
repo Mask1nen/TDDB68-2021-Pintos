@@ -277,6 +277,7 @@ thread_create (const char *name, int priority,
 
     #ifdef USERPROG
     struct thread *current = thread_current();
+    printf("thread %i is exiting\n", current->tid);
     for (size_t i = 2; i < 130; i++) {
       if(current->fd[i]){
         close(i);
@@ -284,41 +285,45 @@ thread_create (const char *name, int priority,
     }
 
     struct list_elem *celem = list_begin(&current->children);
-    struct parent_child *current_pc = list_entry(celem, struct parent_child, elem);
+    struct parent_child *child_pc = list_entry(celem, struct parent_child, elem);
     struct list_elem *next_celem;
+    bool to_free = false;
     if (celem != list_tail(&current->children)) {
       do{
-        if((current_pc && celem && celem != list_tail(&current->children))){
+        if((child_pc && celem && celem != list_tail(&current->children))){
+          to_free = false;
           next_celem = list_next(celem);
-          lock_acquire(&current_pc->l);
-          if (current_pc->alive_count <= 1){
-            lock_release(&current_pc->l);
-            list_remove(celem);
-            //printf("thread %d freed pc: %x with child\n", thread_tid(), current_pc);
-            free(current_pc);
+          lock_acquire(&child_pc->l);
+          child_pc->alive_count--;
+          if(child_pc->alive_count == 0) {
+            to_free = true;
           }
-          else {
-            current_pc->alive_count--;
-            lock_release(&current_pc->l);
-            //printf("thread %d decrement pc: %x in struct with child\nnew value: %d\n", thread_tid(), current_pc, current_pc->alive_count);
+          lock_release(&child_pc->l);
+          if(to_free) {
+            list_remove(celem);
+            free(child_pc);
           }
           celem = next_celem;
           if(celem) {
-            current_pc = list_entry(celem, struct parent_child, elem);
+            child_pc = list_entry(celem, struct parent_child, elem);
           }
         }
       }while(celem != list_tail(&current->children));
     }
     if(current->pc) {
+      to_free = false;
       lock_acquire(&current->pc->l);
-      if(current->pc->alive_count <= 1 && current->pc->alive_count >= 0) {
-        lock_release(&current->pc->l);
-        free(current->pc);
+      current->pc->alive_count--;
+      if(current->pc->alive_count == 0) {
+        to_free = true;
       }
-      else {
-        current->pc->alive_count--;
-        lock_release(&current->pc->l);
-        sema_up(&current->parent->s);
+      else if(current->pc->alive_count > 0) {
+        printf("waking up thread %i\n", current->parent->tid);
+        sema_up(&current->parent->wait_sema);
+      }
+      lock_release(&current->pc->l);
+      if(to_free) {
+        free(current->pc);
       }
     }
 
@@ -486,7 +491,7 @@ thread_create (const char *name, int priority,
     t->fd[0] = STDIN_FILENO;
     t->fd[1] = STDOUT_FILENO;
     list_init(&t->children);
-    sema_init(&t->s, 0);
+    sema_init(&t->wait_sema, 0);
     #endif
   }
 

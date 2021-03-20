@@ -14,7 +14,7 @@ static char buf[BUF_SIZE];
 #define CHILD_CNT 10
 
 void
-test_main (void) 
+test_main (void)
 {
   pid_t children[CHILD_CNT];
   int fd;
@@ -25,7 +25,9 @@ test_main (void)
   CHECK (write (fd, buf, sizeof buf) > 0, "write \"%s\"", file_name);
   msg ("close \"%s\"", file_name);
   close (fd);
-
   exec_children ("child-syn-read", children, CHILD_CNT);
+  for(int i = 0; i < CHILD_CNT; i++) {
+    printf("child pid in syn-read = %i\n", children[i]);
+  }
   wait_children (children, CHILD_CNT);
 }

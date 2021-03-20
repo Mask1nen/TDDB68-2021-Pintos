@@ -225,14 +225,14 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   off_t bytes_read = 0;
   uint8_t *bounce = NULL;
 
-  sema_down(&inode->service_queue_sema);
+  /*sema_down(&inode->service_queue_sema);
   sema_down(&inode->readcount_sema);
   inode->readcount++;
   if(inode->readcount == 1) {
     sema_down(&inode->resource_sema);
   }
   sema_up(&inode->service_queue_sema);
-  sema_up(&inode->readcount_sema);
+  sema_up(&inode->readcount_sema); */
 
   while (size > 0)
     {
