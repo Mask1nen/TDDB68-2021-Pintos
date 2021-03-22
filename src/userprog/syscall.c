@@ -184,7 +184,7 @@ open(void *esp) {
   }
   if(fd != -1){
     struct file *file = filesys_open((char*)esp);
-    if(file){
+    if(file != NULL){
       currentThread->fd[fd]=file;
     }else{
       fd = -1;

@@ -62,14 +62,14 @@ byte_to_sector (const struct inode *inode, off_t pos)
    returns the same `struct inode'. */
 static struct list open_inodes;
 
-struct semaphore openclose_sema;
+struct lock openclose_lock;
 
 /* Initializes the inode module. */
 void
 inode_init (void)
 {
   list_init (&open_inodes);
-  sema_init(&openclose_sema, 1);
+  lock_init(&openclose_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -121,7 +121,7 @@ inode_open (disk_sector_t sector)
 {
   struct list_elem *e;
   struct inode *inode;
-  sema_down(&openclose_sema);
+  lock_acquire(&openclose_lock);
   /* Check whether this inode is already open. */
   for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
        e = list_next (e))
@@ -130,7 +130,7 @@ inode_open (disk_sector_t sector)
       if (inode->sector == sector)
         {
           inode_reopen (inode);
-          sema_up(&openclose_sema);
+          lock_release(&openclose_lock);
           return inode;
         }
     }
@@ -138,23 +138,25 @@ inode_open (disk_sector_t sector)
   /* Allocate memory. */
   inode = malloc (sizeof *inode);
   if (inode == NULL) {
-    sema_up(&openclose_sema);
+    lock_release(&openclose_lock);
     return NULL;
   }
 
   /* Initialize. */
   list_push_front (&open_inodes, &inode->elem);
-  sema_init(&inode->resource_sema, 1);
-  sema_init(&inode->readcount_sema, 1);
-  sema_init(&inode->service_queue_sema, 1);
   inode->readcount = 0;
   inode->sector = sector;
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+
+  sema_init(&inode->resource_sema, 1);
+  sema_init(&inode->readcount_sema, 1);
+  sema_init(&inode->service_queue_sema, 1);
+
   disk_read (filesys_disk, inode->sector, &inode->data);
 
-  sema_up(&openclose_sema);
+  lock_release(&openclose_lock);
   return inode;
 }
 
@@ -184,10 +186,13 @@ void
 inode_close (struct inode *inode)
 {
   /* Ignore null pointer. */
-  if (inode == NULL)
+  lock_acquire(&openclose_lock);
+  if (inode == NULL) {
+    lock_release(&openclose_lock);
     return;
+  }
 
-  sema_down(&openclose_sema);
+
   /* Release resources if this was the last opener. */
   if (--inode->open_cnt == 0)
     {
@@ -203,7 +208,7 @@ inode_close (struct inode *inode)
         }
       free (inode);
     }
-  sema_up(&openclose_sema);
+  lock_release(&openclose_lock);
 }
 
 /* Marks INODE to be deleted when it is closed by the last caller who
@@ -225,14 +230,14 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
   off_t bytes_read = 0;
   uint8_t *bounce = NULL;
 
-  /*sema_down(&inode->service_queue_sema);
+  sema_down(&inode->service_queue_sema);
   sema_down(&inode->readcount_sema);
   inode->readcount++;
   if(inode->readcount == 1) {
     sema_down(&inode->resource_sema);
   }
   sema_up(&inode->service_queue_sema);
-  sema_up(&inode->readcount_sema); */
+  sema_up(&inode->readcount_sema);
 
   while (size > 0)
     {
