@@ -35,29 +35,30 @@ process_execute (const char *cmd_line)
   struct arg_info *ai = (struct arg_info*)malloc(sizeof(struct arg_info));
   sema_init(&ai->sem, 0);
 
-  /* Make a copy of FILE_NAME.
-  Otherwise there's a race between the caller and load(). */
 
   ai->cmd_line = palloc_get_page (0);
-  if (cmd_line == NULL) return TID_ERROR;
+  if (ai->cmd_line == NULL) return TID_ERROR;
   strlcpy (ai->cmd_line, cmd_line, PGSIZE);
 
   char *save_ptr;
   char* temp_cmdline;
   temp_cmdline = palloc_get_page (0);
-  if (cmd_line == NULL) return TID_ERROR;
+  if (temp_cmdline == NULL) return TID_ERROR;
   strlcpy (temp_cmdline, cmd_line, PGSIZE);
   char *file_name = strtok_r (temp_cmdline, " ", &save_ptr);
 
+  /* Make a copy of FILE_NAME.
+  Otherwise there's a race between the caller and load(). */
   ai->fname = palloc_get_page (0);
-  if (ai->fname == NULL)
-  return TID_ERROR;
+  if (ai->fname == NULL) return TID_ERROR;
   strlcpy (ai->fname, file_name, PGSIZE);
+
   ai->parent = thread_current();
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (ai->fname, PRI_DEFAULT, start_process, ai);
 
-  if(tid) sema_down(&ai->sem);
+  if(tid != TID_ERROR) sema_down(&ai->sem);
 
   if(!ai->success) {
     tid = TID_ERROR;
@@ -165,7 +166,7 @@ process_wait (tid_t child_tid UNUSED)
   else {
     lock_acquire(&child_pc->l);
 
-    if(child_pc->alive_count <= 1) {
+    if(child_pc->alive_count <= 1) { //if child has exited
       lock_release(&child_pc->l);
       exit_status = child_pc->exit_status;
     }

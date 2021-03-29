@@ -314,7 +314,6 @@ thread_create (const char *name, int priority,
       lock_acquire(&current->pc->l);
       current->pc->alive_count--;
       if(current->pc->alive_count == 0) {
-        printf("freeing pc %x\n", current->pc);
         to_free = true;
       }
       else {

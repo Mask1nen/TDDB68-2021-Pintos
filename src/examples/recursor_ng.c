@@ -12,7 +12,7 @@ int main (int argc, char *argv[])
 	int i, spawn;
 	int ret = 0;
 
-	if (argc != 4) 
+	if (argc != 4)
 	{
 		printf ("usage: recursor_ng <string> <depth> <waitp>\n");
 		exit (1);
@@ -29,7 +29,7 @@ int main (int argc, char *argv[])
 		exit(-1);
 	}
 
-	if (spawn != 0) 
+	if (spawn != 0)
 	{
 		for (i = 0; i < spawn;i++) {
 			snprintf (buffer, sizeof buffer,
@@ -39,8 +39,7 @@ int main (int argc, char *argv[])
 		if (atoi (argv[3])) {
 			for (i = 0; i < spawn;i++) {
 				retval = wait (pid[i]);
-				if (retval < 0)
-					ret = 1;
+				if (retval < 0) ret = 1;
 			}
 		}
 

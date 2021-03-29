@@ -62,14 +62,16 @@ byte_to_sector (const struct inode *inode, off_t pos)
    returns the same `struct inode'. */
 static struct list open_inodes;
 
-struct lock openclose_lock;
+struct lock openinodes_lock;
+struct lock opencnt_lock;
 
 /* Initializes the inode module. */
 void
 inode_init (void)
 {
   list_init (&open_inodes);
-  lock_init(&openclose_lock);
+  lock_init(&openinodes_lock);
+  lock_init(&opencnt_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -121,8 +123,8 @@ inode_open (disk_sector_t sector)
 {
   struct list_elem *e;
   struct inode *inode;
-  lock_acquire(&openclose_lock);
   /* Check whether this inode is already open. */
+  lock_acquire(&openinodes_lock);
   for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
        e = list_next (e))
     {
@@ -130,23 +132,26 @@ inode_open (disk_sector_t sector)
       if (inode->sector == sector)
         {
           inode_reopen (inode);
-          lock_release(&openclose_lock);
+          lock_release(&openinodes_lock);
           return inode;
         }
     }
-
+  lock_release(&openinodes_lock);
   /* Allocate memory. */
   inode = malloc (sizeof *inode);
   if (inode == NULL) {
-    lock_release(&openclose_lock);
     return NULL;
   }
 
   /* Initialize. */
-  list_push_front (&open_inodes, &inode->elem);
+
   inode->readcount = 0;
   inode->sector = sector;
+
+  lock_acquire(&opencnt_lock);
   inode->open_cnt = 1;
+  lock_release(&opencnt_lock);
+
   inode->deny_write_cnt = 0;
   inode->removed = false;
 
@@ -156,7 +161,10 @@ inode_open (disk_sector_t sector)
 
   disk_read (filesys_disk, inode->sector, &inode->data);
 
-  lock_release(&openclose_lock);
+  lock_acquire(&openinodes_lock);
+  list_push_front (&open_inodes, &inode->elem);
+  lock_release(&openinodes_lock);
+
   return inode;
 }
 
@@ -166,8 +174,10 @@ inode_reopen (struct inode *inode)
 {
   if (inode != NULL)
     {
+      lock_acquire(&opencnt_lock);
       ASSERT(inode->open_cnt != 0);
       inode->open_cnt++;
+      lock_release(&opencnt_lock);
     }
   return inode;
 }
@@ -186,18 +196,20 @@ void
 inode_close (struct inode *inode)
 {
   /* Ignore null pointer. */
-  lock_acquire(&openclose_lock);
   if (inode == NULL) {
-    lock_release(&openclose_lock);
     return;
   }
 
 
   /* Release resources if this was the last opener. */
+  lock_acquire(&opencnt_lock);
   if (--inode->open_cnt == 0)
     {
+      lock_release(&opencnt_lock);
       /* Remove from inode list and release lock. */
+      lock_acquire(&openinodes_lock);
       list_remove (&inode->elem);
+      lock_release(&openinodes_lock);
 
       /* Deallocate blocks if removed. */
       if (inode->removed)
@@ -208,7 +220,7 @@ inode_close (struct inode *inode)
         }
       free (inode);
     }
-  lock_release(&openclose_lock);
+  else lock_release(&opencnt_lock);
 }
 
 /* Marks INODE to be deleted when it is closed by the last caller who
@@ -371,7 +383,9 @@ void
 inode_deny_write (struct inode *inode)
 {
   inode->deny_write_cnt++;
+  lock_acquire(&opencnt_lock);
   ASSERT (inode->deny_write_cnt <= inode->open_cnt);
+  lock_release(&opencnt_lock);
 }
 
 /* Re-enables writes to INODE.
@@ -381,7 +395,9 @@ void
 inode_allow_write (struct inode *inode)
 {
   ASSERT (inode->deny_write_cnt > 0);
+  lock_acquire(&opencnt_lock);
   ASSERT (inode->deny_write_cnt <= inode->open_cnt);
+  lock_release(&opencnt_lock);
   inode->deny_write_cnt--;
 }
 
