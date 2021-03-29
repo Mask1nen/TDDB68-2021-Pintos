@@ -64,11 +64,11 @@ free_map_open (void)
   lock_acquire(&free_map_lock);
   free_map_file = file_open (inode_open (FREE_MAP_SECTOR));
   if (free_map_file == NULL) {
-    //lock_release(&free_map_lock);
+    lock_release(&free_map_lock);
     PANIC ("can't open free map");
   }
   if (!bitmap_read (free_map, free_map_file)) {
-    //lock_release(&free_map_lock);
+    lock_release(&free_map_lock);
     PANIC ("can't read free map");
   }
   lock_release(&free_map_lock);
@@ -89,6 +89,7 @@ void
 free_map_create (void)
 {
   /* Create inode. */
+  //kanske ta ut bitmap_file_size till en variabel och synkronisera variabeln?
   if (!inode_create (FREE_MAP_SECTOR, bitmap_file_size (free_map))) {
     PANIC ("free map creation failed");
   }
